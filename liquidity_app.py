@@ -170,6 +170,11 @@ footer { display: none !important; }
     touch-action: none !important;
     -webkit-touch-callout: none;
 }
+/* Plotly 모드바 스타일 */
+.modebar { opacity: 0.7 !important; }
+.modebar:hover { opacity: 1 !important; }
+.modebar-btn { font-size: 16px !important; }
+.modebar-group { padding: 0 2px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -483,7 +488,7 @@ if df is None or df.empty:
     st.stop()
 
 # ── 자동 이벤트 감지: OHLC ±3% 일변동 자동 추가 ──
-def detect_auto_events(ohlc_df, base_events, threshold=0.03):
+def detect_auto_events(ohlc_df, base_events, threshold=0.05):
     if ohlc_df is None or ohlc_df.empty or len(ohlc_df) < 2:
         return []
     daily_ret = ohlc_df["Close"].pct_change()
@@ -774,8 +779,49 @@ fig_candle.update_yaxes(ax(dict(title_text=f"{CC['liq_label']} ({CC['liq_unit']}
     title_font=dict(color="#3b82f6"), tickfont=dict(color="#3b82f6", size=10),
     showgrid=False, range=[liq_y_min, liq_y_max])), row=1, col=1, secondary_y=True)
 fig_candle.update_yaxes(ax(dict(title_text="거래량", tickformat=".2s", fixedrange=True)), row=2, col=1)
+
+# ── 줌 컨트롤 ──
+zoom_cols = st.columns([1, 1, 1, 4])
+with zoom_cols[0]:
+    zoom_in = st.button("🔍＋ 확대", use_container_width=True, key="zoom_in")
+with zoom_cols[1]:
+    zoom_out = st.button("🔍－ 축소", use_container_width=True, key="zoom_out")
+with zoom_cols[2]:
+    zoom_reset = st.button("↩ 전체보기", use_container_width=True, key="zoom_reset")
+
+# 줌 레벨 관리 (session_state)
+if "zoom_level" not in st.session_state:
+    st.session_state["zoom_level"] = 0
+
+if zoom_in:
+    st.session_state["zoom_level"] = min(st.session_state["zoom_level"] + 1, 5)
+if zoom_out:
+    st.session_state["zoom_level"] = max(st.session_state["zoom_level"] - 1, -2)
+if zoom_reset:
+    st.session_state["zoom_level"] = 0
+
+zl = st.session_state["zoom_level"]
+if zl != 0 and len(ohlc_chart) > 10:
+    total_bars = len(ohlc_chart)
+    # 줌 인: 최근 N% 구간만 표시, 줌 아웃: 더 넓게
+    ratio = max(0.05, 1.0 - zl * 0.15)  # zl=5→5%, zl=-2→130%
+    show_bars = max(10, int(total_bars * ratio))
+    x_start = ohlc_chart.index[-min(show_bars, total_bars)]
+    x_end = ohlc_chart.index[-1]
+    fig_candle.update_xaxes(range=[x_start, x_end], row=1, col=1)
+    fig_candle.update_xaxes(range=[x_start, x_end], row=2, col=1)
+
 st.plotly_chart(fig_candle, use_container_width=True,
-                config={"scrollZoom": True, "displayModeBar": False, "responsive": True})
+                config={"scrollZoom": True,
+                        "displayModeBar": True,
+                        "modeBarButtonsToRemove": [
+                            "select2d", "lasso2d", "autoScale2d",
+                            "hoverClosestCartesian", "hoverCompareCartesian",
+                            "toggleSpikelines", "toImage",
+                        ],
+                        "modeBarButtonsToAdd": [],
+                        "displaylogo": False,
+                        "responsive": True})
 
 # 모바일 핀치 줌 강제 활성화 (JS 주입)
 st.markdown("""
