@@ -278,9 +278,9 @@ COUNTRY_CONFIG = {
     "🇺🇸 미국": {
         "indices": {"NASDAQ": "^IXIC", "S&P 500": "^GSPC", "다우존스": "^DJI"},
         "default_idx": 0,
-        "fred_liq": "BOGMBASE",      # 본원통화 (Millions USD)
+        "fred_liq": "BOGMBASE",      # 본원통화 (Billions of USD — FRED 단위 그대로)
         "fred_rec": "USREC",          # 경기침체 지표
-        "liq_divisor": 1000,          # Millions → Billions
+        "liq_divisor": 1,             # 이미 $B 단위
         "liq_label": "본원통화",
         "liq_unit": "$B",
         "liq_prefix": "$",
@@ -291,15 +291,15 @@ COUNTRY_CONFIG = {
     "🇰🇷 대한민국": {
         "indices": {"KOSPI": "^KS11", "KOSDAQ": "^KQ11"},
         "default_idx": 0,
-        "fred_liq": "MYAGM2KRA196N",  # M2 통화량 (Local Currency, Billions KRW)
-        "fred_rec": None,              # 한국 경기침체 지표 없음
-        "liq_divisor": 1e6,            # Millions → 조원 (1e6)
-        "liq_label": "M2 통화량",
-        "liq_unit": "조원",
-        "liq_prefix": "₩",
-        "liq_suffix": "조",
+        "fred_liq": "BOGMBASE",        # Fed 본원통화 = 글로벌 유동성 지표
+        "fred_rec": "USREC",           # 미국 경기침체 (글로벌 영향)
+        "liq_divisor": 1,              # 이미 $B 단위
+        "liq_label": "글로벌 유동성 (Fed)",
+        "liq_unit": "$B",
+        "liq_prefix": "$",
+        "liq_suffix": "B",
         "events": MARKET_PIVOTS_KR,
-        "data_src": "FRED (World Bank) · Yahoo Finance",
+        "data_src": "Federal Reserve (FRED) · Yahoo Finance (KRX)",
     },
 }
 
@@ -571,62 +571,74 @@ else:
     signal_class, signal_text = "signal-neutral", "🟡 혼합 시그널 → 방향성 주시"
 
 if country == "🇺🇸 미국":
-    brief_body = f"""
-        <strong>▎연준 정책 현황</strong><br>
-        연방기금금리 <span class="hl">3.50–3.75%</span> 유지 (1/28 FOMC).
-        QT는 12/1에 공식 종료되었으며, 12/12부터 <strong>준비금 관리 매입(RMP)</strong>을 통해 국채 매입을 재개하여
-        사실상 대차대조표 확장으로 전환했습니다. 파월 의장 임기 만료(5월)를 앞두고 
-        케빈 워시(Kevin Warsh)가 차기 의장으로 지명되었으며,
-        시장은 하반기 1~2회 추가 인하를 기대하고 있습니다.
-        <hr class="report-divider">
-        <strong>▎유동성 데이터</strong><br>
-        본원통화 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%).
-        3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>.
-        QT 종료와 RMP 개시로 유동성 바닥이 형성되었으며, 완만한 확장 추세에 진입했습니다.
-        <hr class="report-divider">
-        <strong>▎시장 반응</strong><br>
-        {idx_name} <span class="hl">{sp_val:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%).
-        AI 슈퍼사이클과 OBBBA(감세 연장·R&D 비용처리) 재정부양이 주가를 지지하나,
-        높은 밸류에이션(CAPE ~39배)과 시장 집중도 심화가 리스크입니다.
-    """
+    brief_policy = (
+        '<strong>▎연준 정책 현황</strong><br>'
+        '연방기금금리 <span class="hl">3.50–3.75%</span> 유지 (1/28 FOMC). '
+        'QT는 12/1에 공식 종료되었으며, 12/12부터 <strong>준비금 관리 매입(RMP)</strong>을 통해 국채 매입을 재개하여 '
+        '사실상 대차대조표 확장으로 전환했습니다. 파월 의장 임기 만료(5월)를 앞두고 '
+        '케빈 워시(Kevin Warsh)가 차기 의장으로 지명되었으며, '
+        '시장은 하반기 1~2회 추가 인하를 기대하고 있습니다.'
+    )
+    brief_liq = (
+        f'<strong>▎유동성 데이터</strong><br>'
+        f'본원통화 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%). '
+        f'3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>. '
+        f'QT 종료와 RMP 개시로 유동성 바닥이 형성되었으며, 완만한 확장 추세에 진입했습니다.'
+    )
+    brief_market = (
+        f'<strong>▎시장 반응</strong><br>'
+        f'{idx_name} <span class="hl">{sp_val:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%). '
+        f'AI 슈퍼사이클과 OBBBA(감세 연장·R&D 비용처리) 재정부양이 주가를 지지하나, '
+        f'높은 밸류에이션(CAPE ~39배)과 시장 집중도 심화가 리스크입니다.'
+    )
 else:  # 한국
-    brief_body = f"""
-        <strong>▎한국은행 통화정책 현황</strong><br>
-        기준금리 <span class="hl">2.50%</span> (2025/6 기준).
-        글로벌 긴축 완화 흐름에 맞춰 한은도 인하 기조를 유지하고 있으며,
-        원/달러 환율 안정과 가계부채 관리가 추가 인하의 핵심 변수입니다.
-        수출 회복과 반도체 업황 개선이 경기 지지 요인입니다.
-        <hr class="report-divider">
-        <strong>▎유동성 데이터</strong><br>
-        M2 통화량 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%).
-        3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>.
-        가계·기업 대출 증가와 정부 재정지출 확대로 M2 증가세가 지속되고 있습니다.
-        <hr class="report-divider">
-        <strong>▎시장 반응</strong><br>
-        {idx_name} <span class="hl">{sp_val:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%).
-        반도체 수출 호조와 AI 수혜 기대감이 시장을 지지하나,
-        미중 관세 리스크와 원화 약세, 코리아 디스카운트가 지속적 부담입니다.
-    """
+    brief_policy = (
+        '<strong>▎한국은행 통화정책 현황</strong><br>'
+        '기준금리 <span class="hl">2.50%</span> (2025/6 기준). '
+        '글로벌 긴축 완화 흐름에 맞춰 한은도 인하 기조를 유지하고 있으며, '
+        '원/달러 환율 안정과 가계부채 관리가 추가 인하의 핵심 변수입니다. '
+        '수출 회복과 반도체 업황 개선이 경기 지지 요인입니다.'
+    )
+    brief_liq = (
+        f'<strong>▎유동성 데이터</strong><br>'
+        f'Fed 본원통화(글로벌 유동성 지표) 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%). '
+        f'3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>. '
+        f'한국 증시는 미 달러 유동성에 높은 민감도를 보이며, Fed 정책 방향이 핵심 변수입니다.'
+    )
+    brief_market = (
+        f'<strong>▎시장 반응</strong><br>'
+        f'{idx_name} <span class="hl">{sp_val:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%). '
+        f'반도체 수출 호조와 AI 수혜 기대감이 시장을 지지하나, '
+        f'미중 관세 리스크와 원화 약세, 코리아 디스카운트가 지속적 부담입니다.'
+    )
 
-st.markdown(f"""
-<div class="report-box">
-    <div class="report-header">
-        <span class="report-badge">Daily Brief</span>
-        <span class="report-date">{today_str} 기준</span>
-    </div>
-    <div class="report-title">📋 오늘의 유동성 & 시장 브리핑</div>
-    <div class="report-body">
-        {brief_body}
-        <hr class="report-divider">
-        <strong>▎상관관계 진단</strong><br>
-        90일 롤링 상관계수 <span class="hl">{corr_val:.3f}</span>.
-        {'유동성과 주가가 강한 동행 관계를 유지 중입니다.' if corr_val > 0.5
-         else '유동성-주가 동조성이 약화된 구간입니다.' if corr_val > 0
-         else '음의 상관으로 전환된 특이 구간입니다.'}
-    </div>
-    <div class="report-signal {signal_class}">{signal_text}</div>
-</div>
-""", unsafe_allow_html=True)
+brief_corr = (
+    f'<strong>▎상관관계 진단</strong><br>'
+    f'90일 롤링 상관계수 <span class="hl">{corr_val:.3f}</span>. '
+    + ('유동성과 주가가 강한 동행 관계를 유지 중입니다.' if corr_val > 0.5
+       else '유동성-주가 동조성이 약화된 구간입니다.' if corr_val > 0
+       else '음의 상관으로 전환된 특이 구간입니다.')
+)
+
+st.markdown(
+    f'<div class="report-box">'
+    f'<div class="report-header">'
+    f'<span class="report-badge">Daily Brief</span>'
+    f'<span class="report-date">{today_str} 기준</span></div>'
+    f'<div class="report-title">📋 오늘의 유동성 &amp; 시장 브리핑</div>'
+    f'<div class="report-body">'
+    f'{brief_policy}'
+    f'<hr class="report-divider">'
+    f'{brief_liq}'
+    f'<hr class="report-divider">'
+    f'{brief_market}'
+    f'<hr class="report-divider">'
+    f'{brief_corr}'
+    f'</div>'
+    f'<div class="report-signal {signal_class}">{signal_text}</div>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 차트 컨트롤 (지수 + 분석기간 + 봉주기 + 이벤트)
