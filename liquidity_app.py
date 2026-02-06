@@ -12,19 +12,32 @@ import numpy as np
 st.set_page_config(page_title="유동성 × 시장 분석기", page_icon="📊", layout="wide")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 자동 새로고침 (매일 09:00 / 18:00 KST)
+# 자동 새로고침 (PST 09:00/18:00 + KST 09:00/18:00 = 하루 4회)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def get_next_refresh():
-    """다음 새로고침 시각(09:00 또는 18:00)까지 남은 초 계산"""
-    now = datetime.now()
-    today_9 = now.replace(hour=9, minute=0, second=0, microsecond=0)
-    today_18 = now.replace(hour=18, minute=0, second=0, microsecond=0)
-    tomorrow_9 = today_9 + timedelta(days=1)
+from zoneinfo import ZoneInfo
 
-    targets = [today_9, today_18, tomorrow_9]
-    future = [t for t in targets if t > now]
-    next_t = min(future) if future else tomorrow_9
-    return next_t, max(int((next_t - now).total_seconds()), 60)
+def get_next_refresh():
+    """다음 새로고침 시각까지 남은 초 계산 (PST 09/18 + KST 09/18)"""
+    utc_now = datetime.now(ZoneInfo("UTC"))
+
+    # PST (UTC-8) 09:00, 18:00 → UTC 17:00, 02:00(+1)
+    # KST (UTC+9) 09:00, 18:00 → UTC 00:00, 09:00
+    # UTC 기준 정렬: 00:00, 02:00, 09:00, 17:00
+    utc_hours = [0, 2, 9, 17]
+
+    targets = []
+    for h in utc_hours:
+        t = utc_now.replace(hour=h, minute=0, second=0, microsecond=0)
+        if t <= utc_now:
+            t += timedelta(days=1)
+        targets.append(t)
+
+    next_t = min(targets)
+    secs = max(int((next_t - utc_now).total_seconds()), 60)
+
+    # 표시용: 로컬 시간으로 변환
+    local_next = next_t.astimezone(ZoneInfo("Asia/Seoul"))
+    return local_next, secs
 
 NEXT_REFRESH_TIME, REFRESH_SECS = get_next_refresh()
 
@@ -335,12 +348,12 @@ st.markdown("""
 
 # 새로고침 상태 바
 now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-next_str = NEXT_REFRESH_TIME.strftime("%H:%M")
+next_str = NEXT_REFRESH_TIME.strftime("%m/%d %H:%M KST")
 st.markdown(f"""
 <div class="refresh-bar">
     <span class="refresh-dot"></span>
-    마지막 갱신: {now_str} &nbsp;·&nbsp; 다음 자동 갱신: 오늘 {next_str}
-    &nbsp;·&nbsp; 매일 <strong>09:00</strong> / <strong>18:00</strong> 자동 업데이트
+    마지막 갱신: {now_str} &nbsp;·&nbsp; 다음 자동 갱신: {next_str}
+    &nbsp;·&nbsp; 하루 4회: PST 09:00/18:00 + KST 09:00/18:00
 </div>
 """, unsafe_allow_html=True)
 
@@ -459,7 +472,7 @@ st.markdown(f"""
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 col1, col2, _ = st.columns([1.5, 1.5, 4])
 with col1:
-    period = st.selectbox("📅 분석 기간", ["3년", "5년", "7년", "10년", "전체"], index=1)
+    period = st.selectbox("📅 분석 기간", ["3년", "5년", "7년", "10년", "전체"], index=3)
 with col2:
     show_events = st.toggle("📌 이벤트 표시", value=True)
 
@@ -482,7 +495,7 @@ def resample_ohlc(ohlc_df, rule):
 
 cc1, cc2 = st.columns([1.5, 5.5])
 with cc1:
-    tf = st.radio("봉 주기", ["일봉", "주봉", "월봉"], horizontal=True, key="candle_tf")
+    tf = st.radio("봉 주기", ["일봉", "주봉", "월봉"], horizontal=True, key="candle_tf", index=1)
 
 # 기간 필터링된 OHLC 데이터
 ohlc_filtered = ohlc_raw[ohlc_raw.index >= pd.to_datetime(cutoff)].copy()
@@ -570,10 +583,15 @@ fig_candle.update_layout(
 fig_candle.update_xaxes(ax(), row=1, col=1)
 fig_candle.update_xaxes(ax(), row=2, col=1)
 fig_candle.update_yaxes(ax(dict(title_text="S&P 500")), row=1, col=1, secondary_y=False)
+# 유동성 Y축 범위 계산: 하한 3000, 변동 시각화 1.6배 확대
+liq_y_min = 3
+liq_max_val = liq_series.max()
+liq_y_max = liq_y_min + liq_max_val / 1.6  # 1.6배 확대 비율
+
 fig_candle.update_yaxes(ax(dict(title_text="본원통화 ($B)", tickprefix="$",
     title_font=dict(color="#3b82f6"), tickfont=dict(color="#3b82f6", size=10),
-    showgrid=False)), row=1, col=1, secondary_y=True)
-fig_candle.update_yaxes(ax(dict(title_text="거래량", tickformat=".2s")), row=2, col=1)
+    showgrid=False, range=[liq_y_min, liq_y_max])), row=1, col=1, secondary_y=True)
+fig_candle.update_yaxes(ax(dict(title_text="거래량", tickformat=".2s", fixedrange=True)), row=2, col=1)
 st.plotly_chart(fig_candle, use_container_width=True,
                 config={"scrollZoom": True, "displayModeBar": False})
 
@@ -628,6 +646,6 @@ st.markdown(tl_html + "</div>", unsafe_allow_html=True)
 st.markdown(f"""
 <div class="app-footer">
     데이터: Federal Reserve (FRED) · Stooq &nbsp;|&nbsp; 마지막 업데이트: {df.index.max().strftime('%Y-%m-%d')}
-    &nbsp;|&nbsp; 자동 갱신: 매일 09:00 / 18:00 &nbsp;|&nbsp; 본 페이지는 투자 조언이 아닙니다
+    &nbsp;|&nbsp; 자동 갱신: 하루 4회 (PST·KST 09:00/18:00) &nbsp;|&nbsp; 본 페이지는 투자 조언이 아닙니다
 </div>
 """, unsafe_allow_html=True)
