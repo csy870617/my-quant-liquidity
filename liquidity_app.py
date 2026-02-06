@@ -306,10 +306,10 @@ BASE_LAYOUT = dict(
     margin=dict(t=60, b=35, l=55, r=20), dragmode="pan",
 )
 
-def add_events_to_fig(fig, dff, has_rows=False, min_gap_days=30):
+def add_events_to_fig(fig, dff, events, has_rows=False, min_gap_days=30):
     """이벤트를 차트에 추가. min_gap_days로 최소 간격 제어하여 겹침 방지"""
     prev_dt = None
-    for date_str, title, _, emoji, direction in MARKET_PIVOTS:
+    for date_str, title, _, emoji, direction in events:
         dt = pd.to_datetime(date_str)
         if dt < dff.index.min() or dt > dff.index.max():
             continue
@@ -351,12 +351,12 @@ st.markdown("""
     <div class="page-title">유동성 × 시장 분석기</div>
 </div>
 <div class="page-desc">
-    연준 본원통화(Monetary Base)와 S&P 500의 상관관계를 분석합니다.<br>
+    연준 본원통화(Monetary Base)와 주가지수의 상관관계를 분석합니다.<br>
     유동성 흐름이 주가에 미치는 영향을 시각적으로 확인하세요.
 </div>
 """, unsafe_allow_html=True)
 
-# 새로고침 상태 바
+# 새로고침 상태 바 + 지수 선택
 now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 next_str = NEXT_REFRESH_TIME.strftime("%m/%d %H:%M KST")
 st.markdown(f"""
@@ -368,19 +368,12 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 컨트롤 & 데이터 로드
+# 데이터 로드 (지수 선택 → 즉시 로드)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INDEX_OPTIONS = {"NASDAQ": "^IXIC", "S&P 500": "^GSPC", "다우존스": "^DJI"}
-c1, c2, c3, c4 = st.columns([1.4, 1.4, 2.2, 1])
-with c1:
-    idx_name = st.selectbox("📈 지수", list(INDEX_OPTIONS.keys()), index=0)
-with c2:
-    period = st.selectbox("📅 분석 기간", ["3년", "5년", "7년", "10년", "전체"], index=3)
-with c3:
-    tf = st.radio("🕯️ 봉 주기", ["일봉", "주봉", "월봉"], horizontal=True, key="candle_tf", index=2)
-with c4:
-    show_events = st.toggle("📌 이벤트", value=True)
-
+hdr1, hdr2 = st.columns([1.5, 5.5])
+with hdr1:
+    idx_name = st.selectbox("📈 지수 선택", list(INDEX_OPTIONS.keys()), index=0)
 idx_ticker = INDEX_OPTIONS[idx_name]
 
 with st.spinner(f"FRED & {idx_name} 데이터를 불러오는 중..."):
@@ -390,11 +383,31 @@ if df is None or df.empty:
     st.error("데이터를 불러올 수 없습니다. 잠시 후 새로고침 해주세요.")
     st.stop()
 
-period_map = {"3년": 3, "5년": 5, "7년": 7, "10년": 10, "전체": 12}
-period_years = period_map[period]
-cutoff = datetime.now() - timedelta(days=365 * period_years)
-dff = df[df.index >= pd.to_datetime(cutoff)].copy()
+# ── 자동 이벤트 감지: OHLC에서 ±3% 이상 일변동을 자동 추가 ──
+def detect_auto_events(ohlc_df, threshold=0.03):
+    """OHLC 데이터에서 큰 변동일을 자동 감지하여 이벤트 리스트 반환"""
+    if ohlc_df is None or ohlc_df.empty or len(ohlc_df) < 2:
+        return []
+    daily_ret = ohlc_df["Close"].pct_change()
+    existing_dates = {pd.to_datetime(d).date() for d, *_ in MARKET_PIVOTS}
+    auto = []
+    for dt_idx, ret in daily_ret.items():
+        if pd.isna(ret) or dt_idx.date() in existing_dates:
+            continue
+        if abs(ret) < threshold:
+            continue
+        pct = ret * 100
+        if ret > 0:
+            auto.append((dt_idx.strftime("%Y-%m-%d"),
+                f"급등 {pct:+.1f}%", f"하루 {pct:+.1f}% 변동", "🔥", "up"))
+        else:
+            auto.append((dt_idx.strftime("%Y-%m-%d"),
+                f"급락 {pct:+.1f}%", f"하루 {pct:+.1f}% 변동", "⚡", "down"))
+        existing_dates.add(dt_idx.date())
+    return auto
 
+AUTO_EVENTS = detect_auto_events(ohlc_raw)
+ALL_EVENTS = sorted(MARKET_PIVOTS + AUTO_EVENTS, key=lambda x: x[0])
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # KPI
@@ -441,7 +454,7 @@ st.markdown(f"""
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 일일 유동성 리포트
+# Daily Brief
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 today_str = datetime.now().strftime("%Y년 %m월 %d일")
 liq_3m = df["Liquidity"].dropna()
@@ -493,6 +506,22 @@ st.markdown(f"""
     <div class="report-signal {signal_class}">{signal_text}</div>
 </div>
 """, unsafe_allow_html=True)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 차트 컨트롤 (Daily Brief ↓, 차트 ↑)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+c1, c2, c3 = st.columns([1.5, 2.5, 1])
+with c1:
+    period = st.selectbox("📅 분석 기간", ["3년", "5년", "7년", "10년", "전체"], index=3)
+with c2:
+    tf = st.radio("🕯️ 봉 주기", ["일봉", "주봉", "월봉"], horizontal=True, key="candle_tf", index=2)
+with c3:
+    show_events = st.toggle("📌 이벤트", value=True)
+
+period_map = {"3년": 3, "5년": 5, "7년": 7, "10년": 10, "전체": 12}
+period_years = period_map[period]
+cutoff = datetime.now() - timedelta(days=365 * period_years)
+dff = df[df.index >= pd.to_datetime(cutoff)].copy()
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -571,7 +600,7 @@ if show_events:
     gap_map = {"일봉": 14, "주봉": 45, "월봉": 120}
     min_gap = gap_map.get(tf, 30)
     prev_dt = None
-    for date_str, title, _, emoji, direction in MARKET_PIVOTS:
+    for date_str, title, _, emoji, direction in ALL_EVENTS:
         dt = pd.to_datetime(date_str)
         if dt < ohlc_chart.index.min() or dt > ohlc_chart.index.max():
             continue
@@ -632,10 +661,10 @@ if len(ohlc_chart) >= 2:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""<div class="card">
     <div class="card-title"><span class="dot" style="background:var(--accent-blue)"></span> 주요 매크로 이벤트 타임라인 ({} 이벤트)</div>
-""".format(sum(1 for d,_,_,_,_ in MARKET_PIVOTS if pd.to_datetime(d) >= dff.index.min())), unsafe_allow_html=True)
+""".format(sum(1 for d,_,_,_,_ in ALL_EVENTS if pd.to_datetime(d) >= dff.index.min())), unsafe_allow_html=True)
 
 tl_html = '<div class="timeline">'
-for date_str, title, desc, emoji, direction in reversed(MARKET_PIVOTS):
+for date_str, title, desc, emoji, direction in reversed(ALL_EVENTS):
     dt = pd.to_datetime(date_str)
     if dt < dff.index.min():
         continue
