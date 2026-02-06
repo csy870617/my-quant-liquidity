@@ -224,41 +224,40 @@ def load_data():
             fred_df["Liquidity"] = fred_df["Liquidity"] / 1000  # $B 단위
         except Exception as e:
             st.error(f"FRED 데이터 로드 실패: {e}")
-            return None
+            return None, None
 
-        # [B] S&P 500 데이터 (yfinance 사용 - 웹 서버에서 가장 안정적)
+        # [B] S&P 500 데이터 (yfinance 사용 - OHLC 전체)
         try:
             import yfinance as yf
-            # yfinance는 ^GSPC 티커를 사용합니다.
             yf_data = yf.download("^GSPC", start=fetch_start, end=end_dt, progress=False)
             
             if yf_data.empty:
                 st.error("지수 데이터를 가져오지 못했습니다. (데이터가 비어있음)")
-                return None
+                return None, None
             
             # 최신 yfinance의 MultiIndex 구조 대응
             if isinstance(yf_data.columns, pd.MultiIndex):
                 spx = yf_data['Close'][['^GSPC']].rename(columns={'^GSPC': 'SP500'})
+                ohlc = yf_data[[('Open','^GSPC'),('High','^GSPC'),('Low','^GSPC'),('Close','^GSPC'),('Volume','^GSPC')]].copy()
+                ohlc.columns = ['Open','High','Low','Close','Volume']
             else:
                 spx = yf_data[['Close']].rename(columns={'Close': 'SP500'})
+                ohlc = yf_data[['Open','High','Low','Close','Volume']].copy()
                 
         except Exception as e:
             st.error(f"지수 데이터 로드 실패 (yfinance): {e}")
-            return None
+            return None, None
 
         # [C] 데이터 통합 및 가공
-        # 두 데이터를 합칠 때 컬럼명이 정확한지 확인
         df = pd.concat([fred_df, spx], axis=1).ffill()
         
-        # 'SP500' 컬럼이 생성되었는지 확인 후 이동평균 계산
         if 'SP500' in df.columns:
             df["Liq_MA"] = df["Liquidity"].rolling(10).mean()
             df["SP_MA"] = df["SP500"].rolling(10).mean()
         else:
             st.error("데이터 통합 과정에서 'SP500' 컬럼을 생성하지 못했습니다.")
-            return None
+            return None, None
 
-        # 정규화 로직 (SP500 컬럼 존재 확인 포함)
         for c in ["Liquidity", "SP500"]:
             s = df[c].dropna()
             if len(s) > 0:
@@ -266,15 +265,14 @@ def load_data():
         
         df["Corr_90d"] = df["Liquidity"].rolling(90).corr(df["SP500"])
 
-        # 최근 12년 데이터로 자르기
         cut = end_dt - timedelta(days=365 * 12)
         df = df[df.index >= pd.to_datetime(cut)]
-        return df.dropna(subset=["SP500"])
+        ohlc = ohlc[ohlc.index >= pd.to_datetime(cut)]
+        return df.dropna(subset=["SP500"]), ohlc.dropna(subset=["Close"])
         
     except Exception as e:
-        # 에러 메시지를 좀 더 구체적으로 표시
         st.error(f"⚠️ 시스템 오류: {str(e)}")
-        return None
+        return None, None
         
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 차트 헬퍼
@@ -353,7 +351,7 @@ st.markdown(f"""
 # 데이터 로드
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with st.spinner("FRED & Stooq 데이터를 불러오는 중..."):
-    df = load_data()
+    df, ohlc_raw = load_data()
 
 if df is None or df.empty:
     st.error("데이터를 불러올 수 없습니다. 잠시 후 새로고침 해주세요.")
@@ -477,9 +475,117 @@ dff = df[df.index >= pd.to_datetime(cutoff)].copy()
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 차트 탭
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-tab1, tab2 = st.tabs(["🔀  오버레이 비교", "🔗  상관관계 분석"])
+tab1, tab2, tab3 = st.tabs(["🕯️  주가 차트", "🔀  오버레이 비교", "🔗  상관관계 분석"])
+
+# ── 캔들스틱 OHLC 리샘플 헬퍼 ──
+def resample_ohlc(ohlc_df, rule):
+    """OHLC를 주봉(W) 또는 월봉(ME)으로 리샘플"""
+    return ohlc_df.resample(rule).agg({
+        'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'
+    }).dropna()
 
 with tab1:
+    cc1, cc2 = st.columns([1.5, 5.5])
+    with cc1:
+        tf = st.radio("봉 주기", ["일봉", "주봉", "월봉"], horizontal=True, key="candle_tf")
+
+    # 기간 필터링된 OHLC 데이터
+    ohlc_filtered = ohlc_raw[ohlc_raw.index >= pd.to_datetime(cutoff)].copy()
+
+    if tf == "주봉":
+        ohlc_chart = resample_ohlc(ohlc_filtered, "W")
+    elif tf == "월봉":
+        ohlc_chart = resample_ohlc(ohlc_filtered, "ME")
+    else:
+        ohlc_chart = ohlc_filtered.copy()
+
+    # 이동평균 (20, 60, 120 — 봉 주기에 맞게)
+    for ma_len in [20, 60, 120]:
+        ohlc_chart[f"MA{ma_len}"] = ohlc_chart["Close"].rolling(ma_len).mean()
+
+    # 거래량 색상
+    vol_colors = ["#ef4444" if c < o else "#10b981"
+                  for o, c in zip(ohlc_chart["Open"], ohlc_chart["Close"])]
+
+    fig_candle = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03,
+        row_heights=[0.75, 0.25])
+
+    # 캔들스틱
+    fig_candle.add_trace(go.Candlestick(
+        x=ohlc_chart.index,
+        open=ohlc_chart["Open"], high=ohlc_chart["High"],
+        low=ohlc_chart["Low"], close=ohlc_chart["Close"],
+        increasing_line_color="#10b981", increasing_fillcolor="#10b981",
+        decreasing_line_color="#ef4444", decreasing_fillcolor="#ef4444",
+        name="S&P 500", whiskerwidth=0.4,
+    ), row=1, col=1)
+
+    # 이동평균선
+    ma_colors = {"MA20": "#f59e0b", "MA60": "#3b82f6", "MA120": "#8b5cf6"}
+    for ma_name, ma_color in ma_colors.items():
+        s = ohlc_chart[ma_name].dropna()
+        if len(s) > 0:
+            fig_candle.add_trace(go.Scatter(
+                x=s.index, y=s, name=ma_name,
+                line=dict(color=ma_color, width=1.3),
+                hovertemplate="%{y:,.0f}<extra>" + ma_name + "</extra>"
+            ), row=1, col=1)
+
+    # 거래량
+    fig_candle.add_trace(go.Bar(
+        x=ohlc_chart.index, y=ohlc_chart["Volume"], name="거래량",
+        marker_color=vol_colors, opacity=0.5, showlegend=False,
+        hovertemplate="%{y:,.0f}<extra>Volume</extra>"
+    ), row=2, col=1)
+
+    # 이벤트 표시
+    if show_events:
+        for date_str, title, _, emoji, direction in MARKET_PIVOTS:
+            dt = pd.to_datetime(date_str)
+            if dt < ohlc_chart.index.min() or dt > ohlc_chart.index.max():
+                continue
+            fig_candle.add_vline(x=dt, line_width=1, line_dash="dot",
+                line_color=C["event"], row="all", col=1)
+            clr = "#10b981" if direction == "up" else "#ef4444"
+            fig_candle.add_annotation(x=dt, y=1.04, yref="paper",
+                text=f"{emoji} {title}", showarrow=False,
+                font=dict(size=9, color=clr), textangle=-38, xanchor="left")
+
+    # 리세션 음영
+    add_recession(fig_candle, dff, True)
+
+    fig_candle.update_layout(
+        **BASE_LAYOUT, height=620, showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="center", x=0.5, font=dict(size=11),
+                    bgcolor="rgba(0,0,0,0)"),
+        xaxis_rangeslider_visible=False,
+    )
+    fig_candle.update_xaxes(ax(), row=1, col=1)
+    fig_candle.update_xaxes(ax(), row=2, col=1)
+    fig_candle.update_yaxes(ax(dict(title_text="S&P 500")), row=1, col=1)
+    fig_candle.update_yaxes(ax(dict(title_text="거래량", tickformat=".2s")), row=2, col=1)
+    st.plotly_chart(fig_candle, use_container_width=True,
+                    config={"scrollZoom": True, "displayModeBar": False})
+
+    # 최근 캔들 요약
+    if len(ohlc_chart) >= 2:
+        last = ohlc_chart.iloc[-1]
+        prev = ohlc_chart.iloc[-2]
+        chg = (last["Close"] - prev["Close"]) / prev["Close"] * 100
+        chg_cls = "up" if chg >= 0 else "down"
+        chg_arrow = "▲" if chg >= 0 else "▼"
+        st.markdown(f"""<div class="guide-box">
+            🕯️ <strong>최근 {tf}:</strong>
+            시가 <strong>{last['Open']:,.0f}</strong> · 고가 <strong>{last['High']:,.0f}</strong> ·
+            저가 <strong>{last['Low']:,.0f}</strong> · 종가 <strong>{last['Close']:,.0f}</strong>
+            &nbsp;(<span style="color:var(--accent-{'green' if chg>=0 else 'red'})">{chg_arrow} {chg:+.2f}%</span>)
+            &nbsp;|&nbsp; 이평선: <span style="color:#f59e0b">MA20</span> ·
+            <span style="color:#3b82f6">MA60</span> · <span style="color:#8b5cf6">MA120</span>
+        </div>""", unsafe_allow_html=True)
+
+with tab2:
     fig2 = go.Figure()
     fig2.add_trace(go.Scatter(x=dff.index, y=dff["Liquidity_norm"], name="유동성 (정규화)",
         fill="tozeroy", fillcolor=C["liq_fill"], line=dict(color=C["liq"], width=2.5),
@@ -497,7 +603,7 @@ with tab1:
         두 선이 함께 오르면 유동성이 주가를 견인하는 구간, 괴리가 벌어지면 다른 요인이 지배하는 구간입니다.
     </div>""", unsafe_allow_html=True)
 
-with tab2:
+with tab3:
     fig3 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.5, 0.5])
     fig3.add_trace(go.Scatter(x=dff.index, y=dff["Liquidity_norm"], name="유동성",
         line=dict(color=C["liq"], width=2)), row=1, col=1)
