@@ -291,7 +291,7 @@ BASE_LAYOUT = dict(
     font=dict(family="Pretendard, sans-serif", color="#475569", size=12),
     hovermode="x unified",
     hoverlabel=dict(bgcolor="white", bordercolor="#e2e8f0", font=dict(color="#1e293b", size=12)),
-    margin=dict(t=30, b=35, l=55, r=20), dragmode="zoom",
+    margin=dict(t=30, b=35, l=55, r=20), dragmode="pan",
 )
 
 def add_events_to_fig(fig, dff, has_rows=False):
@@ -477,30 +477,9 @@ dff = df[df.index >= pd.to_datetime(cutoff)].copy()
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 차트 탭
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-tab1, tab2, tab3 = st.tabs(["📊  듀얼 패널", "🔀  오버레이 비교", "🔗  상관관계 분석"])
+tab1, tab2 = st.tabs(["🔀  오버레이 비교", "🔗  상관관계 분석"])
 
 with tab1:
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.52, 0.48])
-    fig.add_trace(go.Scatter(x=dff.index, y=dff["Liq_MA"], name="Monetary Base",
-        fill="tozeroy", fillcolor=C["liq_fill"], line=dict(color=C["liq"], width=2.2),
-        hovertemplate="$%{y:,.0f}B<extra></extra>"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=dff.index, y=dff["SP_MA"], name="S&P 500",
-        fill="tozeroy", fillcolor=C["sp_fill"], line=dict(color=C["sp"], width=2.2),
-        hovertemplate="%{y:,.0f}<extra></extra>"), row=2, col=1)
-    if show_events: add_events_to_fig(fig, dff, True)
-    add_recession(fig, dff, True)
-    fig.update_layout(**BASE_LAYOUT, height=620, showlegend=False)
-    fig.update_xaxes(ax(), row=1, col=1)
-    fig.update_xaxes(ax(dict(rangeslider=dict(visible=True, thickness=0.04))), row=2, col=1)
-    fig.update_yaxes(ax(dict(title_text="본원통화 ($B)", tickprefix="$")), row=1, col=1)
-    fig.update_yaxes(ax(dict(title_text="S&P 500")), row=2, col=1)
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "displayModeBar": False})
-    st.markdown("""<div class="guide-box">
-        💡 <strong>읽는 법:</strong> 상단 파란 영역 = 유동성(본원통화), 하단 빨간 영역 = 주가(S&P 500).
-        유동성이 급격히 확대되면 주가도 함께 상승하는 경향이 있습니다. 점선은 흐름을 바꾼 이벤트입니다.
-    </div>""", unsafe_allow_html=True)
-
-with tab2:
     fig2 = go.Figure()
     fig2.add_trace(go.Scatter(x=dff.index, y=dff["Liquidity_norm"], name="유동성 (정규화)",
         fill="tozeroy", fillcolor=C["liq_fill"], line=dict(color=C["liq"], width=2.5),
@@ -511,14 +490,14 @@ with tab2:
     add_recession(fig2, dff)
     fig2.update_layout(**BASE_LAYOUT, height=500, showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=12), bgcolor="rgba(0,0,0,0)"),
-        yaxis=ax(dict(title_text="정규화 (0–100)")), xaxis=ax(dict(rangeslider=dict(visible=True, thickness=0.04))))
+        yaxis=ax(dict(title_text="정규화 (0–100)")), xaxis=ax())
     st.plotly_chart(fig2, use_container_width=True, config={"scrollZoom": True, "displayModeBar": False})
     st.markdown("""<div class="guide-box">
         💡 <strong>읽는 법:</strong> 두 데이터를 0–100 같은 척도로 맞춰 <strong>방향성</strong>을 직접 비교합니다.
         두 선이 함께 오르면 유동성이 주가를 견인하는 구간, 괴리가 벌어지면 다른 요인이 지배하는 구간입니다.
     </div>""", unsafe_allow_html=True)
 
-with tab3:
+with tab2:
     fig3 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.5, 0.5])
     fig3.add_trace(go.Scatter(x=dff.index, y=dff["Liquidity_norm"], name="유동성",
         line=dict(color=C["liq"], width=2)), row=1, col=1)
@@ -536,7 +515,7 @@ with tab3:
     fig3.update_layout(**BASE_LAYOUT, height=620, showlegend=True, bargap=0,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=11), bgcolor="rgba(0,0,0,0)"))
     fig3.update_xaxes(ax(), row=1, col=1)
-    fig3.update_xaxes(ax(dict(rangeslider=dict(visible=True, thickness=0.04))), row=2, col=1)
+    fig3.update_xaxes(ax(), row=2, col=1)
     fig3.update_yaxes(ax(dict(title_text="정규화 (0–100)")), row=1, col=1)
     fig3.update_yaxes(ax(dict(title_text="상관계수", range=[-1, 1])), row=2, col=1)
     st.plotly_chart(fig3, use_container_width=True, config={"scrollZoom": True, "displayModeBar": False})
