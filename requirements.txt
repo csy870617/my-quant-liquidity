@@ -3,5 +3,4 @@ pandas
 pandas-datareader
 yfinance
 plotly
-setuptools
 numpy

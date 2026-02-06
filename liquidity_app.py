@@ -214,37 +214,65 @@ MARKET_PIVOTS = [
 def load_data():
     try:
         end_dt = datetime.now()
-        fetch_start = end_dt - timedelta(days=365 * 13 + 120)
+        # 데이터 수집 시작 시점 (충분히 확보)
+        fetch_start = end_dt - timedelta(days=365 * 14)
 
-        fred_df = web.DataReader(["BOGMBASE", "USREC"], "fred", fetch_start, end_dt).ffill()
-        fred_df.columns = ["Liquidity", "Recession"]
-        fred_df["Liquidity"] = fred_df["Liquidity"] / 1000
-
-        spx = web.DataReader("^SPX", "stooq", fetch_start, end_dt)
-        if spx.empty:
+        # [A] FRED 데이터 (유동성 & 경기침체) - 보통 클라우드에서도 잘 작동함
+        try:
+            fred_df = web.DataReader(["BOGMBASE", "USREC"], "fred", fetch_start, end_dt).ffill()
+            fred_df.columns = ["Liquidity", "Recession"]
+            fred_df["Liquidity"] = fred_df["Liquidity"] / 1000
+        except Exception as e:
+            st.warning(f"FRED 데이터 로드 중 일부 지연 발생: {e}")
             return None
-        spx = spx.sort_index()[["Close"]].rename(columns={"Close": "SP500"})
 
+        # [B] S&P 500 데이터 (이중 우회 로직)
+        spx = pd.DataFrame()
+        
+        # 1차 시도: Stooq (로컬에서 강함)
+        try:
+            spx = web.DataReader("^SPX", "stooq", fetch_start, end_dt)
+            if not spx.empty:
+                spx = spx.sort_index()[["Close"]].rename(columns={"Close": "SP500"})
+        except:
+            pass
+            
+        # 2차 시도: yfinance (Stooq 차단 시 클라우드에서 매우 안정적)
+        if spx.empty:
+            try:
+                import yfinance as yf
+                # yfinance를 통해 S&P 500 지수(^GSPC) 로드
+                yf_data = yf.download("^GSPC", start=fetch_start, end=end_dt, progress=False)
+                if not yf_data.empty:
+                    # MultiIndex 구조 대응
+                    if isinstance(yf_data.columns, pd.MultiIndex):
+                        spx = yf_data['Close'][['^GSPC']].rename(columns={'^GSPC': 'SP500'})
+                    else:
+                        spx = yf_data[['Close']].rename(columns={'Close': 'SP500'})
+            except Exception as e:
+                st.error(f"지수 데이터 로드 최종 실패: {e}")
+                return None
+
+        # [C] 데이터 통합 및 가공
         df = pd.concat([fred_df, spx], axis=1).ffill()
         df["Liq_MA"] = df["Liquidity"].rolling(10).mean()
         df["SP_MA"] = df["SP500"].rolling(10).mean()
-        df["Liq_YoY"] = df["Liquidity"].pct_change(252) * 100
-        df["SP_YoY"] = df["SP500"].pct_change(252) * 100
-
+        
+        # 정규화 및 상관관계 계산 (기존 로직 유지)
         for c in ["Liquidity", "SP500"]:
             s = df[c].dropna()
             if len(s) > 0:
                 df[f"{c}_norm"] = (df[c] - s.min()) / (s.max() - s.min()) * 100
-
         df["Corr_90d"] = df["Liquidity"].rolling(90).corr(df["SP500"])
 
+        # 최근 12년 데이터로 자르기
         cut = end_dt - timedelta(days=365 * 12)
         df = df[df.index >= pd.to_datetime(cut)]
         return df.dropna(subset=["SP500"])
+        
     except Exception as e:
-        st.error(f"⚠️ 데이터 로드 실패: {e}")
+        st.error(f"⚠️ 시스템 오류: {e}")
         return None
-
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 차트 헬퍼
