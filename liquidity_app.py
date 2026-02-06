@@ -217,52 +217,53 @@ def load_data():
         # 데이터 수집 시작 시점 (충분히 확보)
         fetch_start = end_dt - timedelta(days=365 * 14)
 
-        # [A] FRED 데이터 (유동성 & 경기침체) - 보통 클라우드에서도 잘 작동함
+        # [A] FRED 데이터 (유동성)
         try:
             fred_df = web.DataReader(["BOGMBASE", "USREC"], "fred", fetch_start, end_dt).ffill()
             fred_df.columns = ["Liquidity", "Recession"]
-            fred_df["Liquidity"] = fred_df["Liquidity"] / 1000
+            fred_df["Liquidity"] = fred_df["Liquidity"] / 1000  # $B 단위
         except Exception as e:
-            st.warning(f"FRED 데이터 로드 중 일부 지연 발생: {e}")
+            st.error(f"FRED 데이터 로드 실패: {e}")
             return None
 
-        # [B] S&P 500 데이터 (이중 우회 로직)
-        spx = pd.DataFrame()
-        
-        # 1차 시도: Stooq (로컬에서 강함)
+        # [B] S&P 500 데이터 (yfinance 사용 - 웹 서버에서 가장 안정적)
         try:
-            spx = web.DataReader("^SPX", "stooq", fetch_start, end_dt)
-            if not spx.empty:
-                spx = spx.sort_index()[["Close"]].rename(columns={"Close": "SP500"})
-        except:
-            pass
+            import yfinance as yf
+            # yfinance는 ^GSPC 티커를 사용합니다.
+            yf_data = yf.download("^GSPC", start=fetch_start, end=end_dt, progress=False)
             
-        # 2차 시도: yfinance (Stooq 차단 시 클라우드에서 매우 안정적)
-        if spx.empty:
-            try:
-                import yfinance as yf
-                # yfinance를 통해 S&P 500 지수(^GSPC) 로드
-                yf_data = yf.download("^GSPC", start=fetch_start, end=end_dt, progress=False)
-                if not yf_data.empty:
-                    # MultiIndex 구조 대응
-                    if isinstance(yf_data.columns, pd.MultiIndex):
-                        spx = yf_data['Close'][['^GSPC']].rename(columns={'^GSPC': 'SP500'})
-                    else:
-                        spx = yf_data[['Close']].rename(columns={'Close': 'SP500'})
-            except Exception as e:
-                st.error(f"지수 데이터 로드 최종 실패: {e}")
+            if yf_data.empty:
+                st.error("지수 데이터를 가져오지 못했습니다. (데이터가 비어있음)")
                 return None
+            
+            # 최신 yfinance의 MultiIndex 구조 대응
+            if isinstance(yf_data.columns, pd.MultiIndex):
+                spx = yf_data['Close'][['^GSPC']].rename(columns={'^GSPC': 'SP500'})
+            else:
+                spx = yf_data[['Close']].rename(columns={'Close': 'SP500'})
+                
+        except Exception as e:
+            st.error(f"지수 데이터 로드 실패 (yfinance): {e}")
+            return None
 
         # [C] 데이터 통합 및 가공
+        # 두 데이터를 합칠 때 컬럼명이 정확한지 확인
         df = pd.concat([fred_df, spx], axis=1).ffill()
-        df["Liq_MA"] = df["Liquidity"].rolling(10).mean()
-        df["SP_MA"] = df["SP500"].rolling(10).mean()
         
-        # 정규화 및 상관관계 계산 (기존 로직 유지)
+        # 'SP500' 컬럼이 생성되었는지 확인 후 이동평균 계산
+        if 'SP500' in df.columns:
+            df["Liq_MA"] = df["Liquidity"].rolling(10).mean()
+            df["SP_MA"] = df["SP500"].rolling(10).mean()
+        else:
+            st.error("데이터 통합 과정에서 'SP500' 컬럼을 생성하지 못했습니다.")
+            return None
+
+        # 정규화 로직 (SP500 컬럼 존재 확인 포함)
         for c in ["Liquidity", "SP500"]:
             s = df[c].dropna()
             if len(s) > 0:
                 df[f"{c}_norm"] = (df[c] - s.min()) / (s.max() - s.min()) * 100
+        
         df["Corr_90d"] = df["Liquidity"].rolling(90).corr(df["SP500"])
 
         # 최근 12년 데이터로 자르기
@@ -271,9 +272,10 @@ def load_data():
         return df.dropna(subset=["SP500"])
         
     except Exception as e:
-        st.error(f"⚠️ 시스템 오류: {e}")
+        # 에러 메시지를 좀 더 구체적으로 표시
+        st.error(f"⚠️ 시스템 오류: {str(e)}")
         return None
-
+        
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 차트 헬퍼
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
