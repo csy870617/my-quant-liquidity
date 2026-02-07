@@ -683,6 +683,8 @@ liq_3m = df["Liquidity"].dropna()
 liq_3m_chg = ((liq_3m.iloc[-1] - liq_3m.iloc[-63]) / liq_3m.iloc[-63] * 100) if len(liq_3m) > 63 else 0
 sp_1m = df["SP500"].dropna()
 sp_1m_chg = ((sp_1m.iloc[-1] - sp_1m.iloc[-21]) / sp_1m.iloc[-21] * 100) if len(sp_1m) > 21 else 0
+# ★ 수정: 에러 발생했던 sp_yoy 변수 추가
+sp_yoy = latest["SP_YoY"] if pd.notna(latest.get("SP_YoY")) else 0
 
 today_str = datetime.now().strftime("%Y년 %m월 %d일")
 liq_display = f"{CC['liq_prefix']}{liq_val:,.0f}{CC['liq_suffix']}"
