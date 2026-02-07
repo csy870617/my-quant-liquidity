@@ -583,47 +583,127 @@ with kpi_container:
     """, unsafe_allow_html=True)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Daily Brief (Modern Chat Style)
+# Daily Brief (Advanced AI Analysis Style)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with brief_container:
-    # (로직 동일)
+    # ── [1] 추가 기술적 분석 지표 계산 ──
+    # RSI (14일) 계산
+    delta = df['SP500'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    current_rsi = df['RSI'].iloc[-1] if len(df) > 14 else 50
+    
+    # 이격도 (현재가 / 60일 이평선)
+    ma60 = df['SP500'].rolling(60).mean().iloc[-1]
+    disparity = (latest["SP500"] / ma60 * 100) - 100 if ma60 > 0 else 0
+
+    # 유동성 및 시장 추세 데이터
     liq_3m = df["Liquidity"].dropna()
     liq_3m_chg = ((liq_3m.iloc[-1] - liq_3m.iloc[-63]) / liq_3m.iloc[-63] * 100) if len(liq_3m) > 63 else 0
     sp_1m = df["SP500"].dropna()
     sp_1m_chg = ((sp_1m.iloc[-1] - sp_1m.iloc[-21]) / sp_1m.iloc[-21] * 100) if len(sp_1m) > 21 else 0
 
-    if corr_val > 0.5 and liq_3m_chg > 0:
-        sig_cls, sig_txt = "sig-bull", "BULLISH: 유동성 확장 동조"
-    elif corr_val < 0 or liq_3m_chg < -1:
-        sig_cls, sig_txt = "sig-bear", "BEARISH/CAUTION: 이탈 징후"
+    # ── [2] 동적 분석 텍스트 생성 로직 ──
+    # (A) 유동성 환경 진단
+    if liq_3m_chg > 1.0:
+        liq_status = "확장 국면 (Expansionary)"
+        liq_desc = "중앙은행의 적극적인 유동성 공급이 시장의 하단을 지지하고 있습니다."
+        liq_badge_color = "sig-bull"
+    elif liq_3m_chg < -1.0:
+        liq_status = "축소 국면 (Contractionary)"
+        liq_desc = "유동성 회수가 진행되고 있어 밸류에이션 부담이 가중될 수 있습니다."
+        liq_badge_color = "sig-bear"
     else:
-        sig_cls, sig_txt = "sig-neu", "NEUTRAL: 방향성 탐색"
+        liq_status = "중립 (Neutral)"
+        liq_desc = "유동성 변화가 크지 않아, 실적 등 펀더멘털 요인이 더 중요해진 시점입니다."
+        liq_badge_color = "sig-neu"
 
-    # 텍스트 생성 로직 (동일)
-    if country == "🇺🇸 미국":
-        brief_body = (
-            f"연준(Fed)의 정책 기조와 시장 반응을 요약합니다.<br><br>"
-            f"• <strong>유동성:</strong> 본원통화는 <span class='report-hl'>{liq_display}</span> 수준이며, 3개월간 <span class='report-hl'>{liq_3m_chg:+.1f}%</span> 변동했습니다. "
-            f"RMP 및 대차대조표 정책 변화를 주시해야 합니다.<br>"
-            f"• <strong>시장:</strong> {idx_name} 지수는 <span class='report-hl'>{sp_val:,.0f}</span>포인트로 마감했습니다. (MoM {sp_1m_chg:+.1f}%)"
-        )
+    # (B) 기술적 과열/침체 진단
+    if current_rsi > 70:
+        tech_signal = "과매수 (Overbought)"
+        tech_desc = f"RSI가 {current_rsi:.0f}에 도달하여 단기 차익실현 매물 출회 가능성이 높습니다."
+        tech_color = "#EF4444"
+    elif current_rsi < 30:
+        tech_signal = "과매도 (Oversold)"
+        tech_desc = f"RSI가 {current_rsi:.0f}로 침체권이며, 기술적 반등을 모색할 구간입니다."
+        tech_color = "#10B981"
     else:
-        brief_body = (
-            f"한국 시장과 글로벌 유동성의 연동성을 요약합니다.<br><br>"
-            f"• <strong>매크로:</strong> Fed 유동성은 <span class='report-hl'>{liq_display}</span>이며 3개월 변동폭은 <span class='report-hl'>{liq_3m_chg:+.1f}%</span>입니다. 원/달러 환율 및 한은 정책이 주요 변수입니다.<br>"
-            f"• <strong>시장:</strong> {idx_name} 지수는 <span class='report-hl'>{sp_val:,.0f}</span>포인트를 기록 중입니다."
-        )
+        tech_signal = "안정적 (Stable)"
+        tech_desc = f"RSI {current_rsi:.0f} 수준으로, 추세가 지속될 여력이 남아있습니다."
+        tech_color = "#6B7280"
 
+    # (C) 종합 투자 의견 (Signal)
+    if corr_val > 0.4 and liq_3m_chg > 0 and sp_1m_chg > -5:
+        main_signal = "STRONG BUY"
+        main_badge = "sig-bull"
+        main_comment = "유동성과 펀더멘털이 동조하며 상승 탄력을 강화하고 있습니다."
+    elif corr_val < -0.3:
+        main_signal = "DIVERGENCE"
+        main_badge = "sig-bear"
+        main_comment = "유동성 환경과 주가가 괴리(Divergence)를 보이고 있어 변동성에 유의해야 합니다."
+    elif liq_3m_chg < -2 and sp_1m_chg < 0:
+        main_signal = "RISK OFF"
+        main_badge = "sig-bear"
+        main_comment = "유동성 위축과 가격 조정이 동시에 나타나는 약세장 흐름입니다."
+    else:
+        main_signal = "HOLD / WATCH"
+        main_badge = "sig-neu"
+        main_comment = "명확한 방향성보다는 박스권 등락 또는 추세 전환을 탐색하는 구간입니다."
+
+    # ── [3] UI 렌더링 ──
     st.markdown(f"""
     <div class="report-container">
         <div class="report-top">
-            <div style="font-weight:800; font-size:1.1rem; display:flex; align-items:center; gap:8px;">
-                <span style="font-size:1.5rem;">💬</span> AI Market Insight
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <div style="font-size:0.8rem; font-weight:600; color:#9CA3AF; letter-spacing:0.05em;">AI MARKET INSIGHT</div>
+                <div style="font-weight:800; font-size:1.4rem; color:#111827;">Strategy Report</div>
             </div>
-            <div class="signal-badge {sig_cls}">{sig_txt}</div>
+            <div class="signal-badge {main_badge}" style="font-size:1rem; padding:8px 16px;">{main_signal}</div>
         </div>
-        <div style="line-height:1.8; color:#374151; font-size:0.95rem;">
-            {brief_body}
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; margin-bottom:1.5rem;">
+            
+            <div style="background:#F9FAFB; padding:16px; border-radius:12px; border:1px solid #F3F4F6;">
+                <div style="font-size:0.85rem; font-weight:700; color:#4B5563; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                    <span style="background:#DBEAFE; color:#1E40AF; padding:2px 6px; border-radius:4px; font-size:0.7rem;">MACRO</span>
+                    Liquidity Environment
+                </div>
+                <div style="font-size:1.1rem; font-weight:800; color:#1F2937; margin-bottom:6px;">{liq_status}</div>
+                <div style="font-size:0.85rem; color:#6B7280; line-height:1.6;">
+                    {liq_desc}<br>
+                    <span style="font-size:0.8rem; color:#9CA3AF; margin-top:4px; display:block;">
+                        • 3개월 변동: <span style="font-family:'JetBrains Mono'; font-weight:600; color:{'#10B981' if liq_3m_chg>0 else '#EF4444'}">{liq_3m_chg:+.2f}%</span><br>
+                        • 유동성-주가 상관계수: <span style="font-family:'JetBrains Mono'; font-weight:600;">{corr_val:.2f}</span>
+                    </span>
+                </div>
+            </div>
+
+            <div style="background:#F9FAFB; padding:16px; border-radius:12px; border:1px solid #F3F4F6;">
+                <div style="font-size:0.85rem; font-weight:700; color:#4B5563; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                    <span style="background:#FEF3C7; color:#92400E; padding:2px 6px; border-radius:4px; font-size:0.7rem;">TECH</span>
+                    Price Momentum
+                </div>
+                <div style="font-size:1.1rem; font-weight:800; color:{tech_color}; margin-bottom:6px;">{tech_signal}</div>
+                <div style="font-size:0.85rem; color:#6B7280; line-height:1.6;">
+                    {tech_desc}<br>
+                    <span style="font-size:0.8rem; color:#9CA3AF; margin-top:4px; display:block;">
+                        • RSI (14): <span style="font-family:'JetBrains Mono'; font-weight:600;">{current_rsi:.1f}</span><br>
+                        • 60일 이평 이격도: <span style="font-family:'JetBrains Mono'; font-weight:600; color:{'#10B981' if disparity>0 else '#EF4444'}">{disparity:+.2f}%</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div style="border-top:1px dashed #E5E7EB; padding-top:16px;">
+            <div style="font-size:0.9rem; font-weight:600; color:#374151; margin-bottom:4px;">💡 Actionable Insight</div>
+            <div style="font-size:0.9rem; color:#4B5563; line-height:1.6;">
+                {main_comment} {idx_name} 지수는 현재 단기적으로 <strong>{sp_1m_chg:+.1f}%</strong> 변동하며 
+                {'상승 추세를 유지' if sp_1m_chg > 0 else '조정 압력을 받고'} 있습니다. 
+                특히 유동성 지표와의 상관관계가 <strong>{'높으므로(High Correlation)' if abs(corr_val) > 0.5 else '낮으므로(Decoupling)'}</strong>, 
+                {'중앙은행의 정책 변화를 최우선으로 모니터링해야 합니다.' if abs(corr_val) > 0.5 else '개별 기업 실적과 자체 모멘텀에 집중하는 전략이 유효합니다.'}
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
