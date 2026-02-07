@@ -41,7 +41,7 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# CSS (모바일 최적화 및 너비 조정)
+# CSS (차트 풀스크린 및 여백 제거)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <style>
@@ -59,7 +59,15 @@ html, body, [data-testid="stAppViewContainer"] {
     background: var(--bg) !important; color: var(--text-primary);
 }
 [data-testid="stHeader"] { background: transparent !important; }
-.block-container { padding: 1.5rem 2rem 3rem; max-width: 1280px; }
+
+/* ★ 수정: 전체 컨테이너 패딩 최소화 및 최대 너비 해제 */
+.block-container { 
+    padding-top: 1rem !important;
+    padding-bottom: 3rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    max-width: 100% !important;
+}
 
 /* ── 페이지 헤더 ── */
 .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 0.4rem; }
@@ -164,20 +172,26 @@ footer { display: none !important; }
 .stRadio { margin-bottom: -0.6rem !important; }
 .app-footer { text-align:center; color:var(--text-muted); font-size:0.75rem; margin-top:2rem; padding:1rem; border-top:1px solid var(--border); }
 
-/* ── Plotly 차트 & 툴바(Modebar) ── */
+/* ── Plotly 차트 ── */
 .js-plotly-plot, .plotly, .js-plotly-plot .plotly,
 [data-testid="stPlotlyChart"], [data-testid="stPlotlyChart"] > div,
 .stPlotlyChart, .stPlotlyChart > div > div > div {
     touch-action: none !important;
     -webkit-touch-callout: none;
 }
-/* ★ 툴바(Modebar)를 우측 하단으로 이동 */
+/* 차트 좌우 여백 강제 제거 (Full Bleed) */
+[data-testid="stPlotlyChart"] {
+    width: 100% !important;
+    padding: 0 !important;
+}
+
+/* 툴바 우측 하단 고정 */
 .modebar { 
     opacity: 0.7 !important; 
-    top: auto !important;     /* 상단 고정 해제 */
-    bottom: 0 !important;     /* 하단 고정 */
-    right: 0 !important;      /* 우측 고정 */
-    left: auto !important;    /* 좌측 고정 해제 */
+    top: auto !important;     
+    bottom: 0 !important;     
+    right: 0 !important;      
+    left: auto !important;    
 }
 .modebar:hover { opacity: 1 !important; }
 .modebar-btn { font-size: 16px !important; }
@@ -187,12 +201,12 @@ footer { display: none !important; }
    모바일 반응형 (≤768px)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 @media (max-width: 768px) {
-    /* 레이아웃: 패딩 최소화로 화면 공간 확보 */
+    /* 레이아웃 더 꽉차게 */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
-        padding-left: 0.4rem !important;
-        padding-right: 0.4rem !important;
+        padding-left: 0.2rem !important; /* 최소한의 패딩만 남김 */
+        padding-right: 0.2rem !important;
     }
 
     /* 헤더 축소 */
@@ -204,14 +218,13 @@ footer { display: none !important; }
     /* 새로고침 바 */
     .refresh-bar { font-size: 0.68rem; padding: 5px 10px; gap: 4px; }
 
-    /* 컨트롤 바: 비율 1:1:1:1:1 조정에 맞춰 래핑 처리 */
+    /* 컨트롤 바: 비율 조정 대응 */
     [data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
         gap: 0.3rem !important;
     }
-    /* 모바일에서는 컬럼들이 좁아지므로 적절히 래핑 */
     [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
-        flex: 0 0 48% !important; /* 2열 배치 유도 */
+        flex: 0 0 48% !important; 
         min-width: 45% !important;
         max-width: 50% !important;
     }
@@ -235,13 +248,6 @@ footer { display: none !important; }
     .report-title { font-size: 0.95rem; }
     .report-body { font-size: 0.82rem; line-height: 1.7; }
     .report-signal { font-size: 0.73rem; padding: 4px 10px; }
-
-    /* ★ 차트 너비: Daily Brief 박스와 동일하게 (음수 마진 제거) */
-    [data-testid="stPlotlyChart"] {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        width: 100% !important;
-    }
 
     /* 가이드 박스 */
     .guide-box { padding: 0.7rem 0.9rem; font-size: 0.76rem; line-height: 1.6; }
@@ -268,12 +274,10 @@ footer { display: none !important; }
 
 /* ━━ 초소형 화면 (≤480px) ━━ */
 @media (max-width: 480px) {
-    /* 레이아웃 더 타이트하게 */
     .block-container { 
-        padding-left: 0.2rem !important;
-        padding-right: 0.2rem !important;
+        padding-left: 0.1rem !important;
+        padding-right: 0.1rem !important;
     }
-
     .page-header-icon { width: 32px; height: 32px; font-size: 1rem; }
     .page-title { font-size: 1.05rem; letter-spacing: -0.3px; }
     .page-desc { font-size: 0.75rem; margin-bottom: 0.6rem; }
@@ -281,14 +285,6 @@ footer { display: none !important; }
     .kpi-label { font-size: 0.6rem; letter-spacing: 0.3px; }
     .report-title { font-size: 0.88rem; }
     .report-body { font-size: 0.78rem; line-height: 1.6; }
-
-    /* 차트 너비 초기화 (여백 준수) */
-    [data-testid="stPlotlyChart"] {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        width: 100% !important;
-    }
-
     .tl-date { min-width: 60px; font-size: 0.62rem; }
     .tl-desc { display: none; }
 }
@@ -512,7 +508,8 @@ BASE_LAYOUT = dict(
     font=dict(family="Pretendard, sans-serif", color="#475569", size=12),
     hovermode="x unified",
     hoverlabel=dict(bgcolor="white", bordercolor="#e2e8f0", font=dict(color="#1e293b", size=12)),
-    margin=dict(t=50, b=30, l=45, r=15), dragmode="pan",
+    # ★ 수정: 차트 마진 0 (Full Bleed)
+    margin=dict(t=50, b=30, l=0, r=0), dragmode="pan",
 )
 
 def add_events_to_fig(fig, dff, events, has_rows=False, min_gap_days=30):
@@ -586,7 +583,6 @@ st.write("") # 간격
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 통합 컨트롤 바 (국가 · 지수 · 기간 · 봉주기 · 이벤트)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ★ 수정: 5개 컬럼의 비율을 1:1:1:1:1로 조정
 ctrl1, ctrl2, ctrl3, ctrl4, ctrl5 = st.columns([1, 1, 1, 1, 1])
 with ctrl1:
     country = st.selectbox("🌍 국가", list(COUNTRY_CONFIG.keys()), index=0)
@@ -883,20 +879,20 @@ fig_candle.update_layout(
 )
 fig_candle.update_xaxes(ax(), row=1, col=1)
 fig_candle.update_xaxes(ax(), row=2, col=1)
-# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="")
-fig_candle.update_yaxes(ax(dict(title_text="")), row=1, col=1, secondary_y=False)
+# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="") + 안쪽 배치
+fig_candle.update_yaxes(ax(dict(title_text="", ticklabelposition="inside")), row=1, col=1, secondary_y=False)
 # 유동성 Y축 범위 계산: 데이터 하한 기반으로 동적 설정
 liq_min_val = liq_series.min()
 liq_max_val = liq_series.max()
 liq_y_min = liq_min_val * 0.85  # 하한 15% 여유
 liq_y_max = liq_y_min + (liq_max_val - liq_y_min) / 0.6  # 변동 시각화 확대
 
-# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="")
+# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="") + 안쪽 배치
 fig_candle.update_yaxes(ax(dict(title_text="",
     title_font=dict(color="#3b82f6"), tickfont=dict(color="#3b82f6", size=10),
-    showgrid=False, range=[liq_y_min, liq_y_max])), row=1, col=1, secondary_y=True)
-# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="")
-fig_candle.update_yaxes(ax(dict(title_text="", tickformat=".2s", fixedrange=True)), row=2, col=1)
+    showgrid=False, range=[liq_y_min, liq_y_max], ticklabelposition="inside")), row=1, col=1, secondary_y=True)
+# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="") + 안쪽 배치
+fig_candle.update_yaxes(ax(dict(title_text="", tickformat=".2s", fixedrange=True, ticklabelposition="inside")), row=2, col=1)
 
 st.plotly_chart(fig_candle, use_container_width=True,
                 config={"scrollZoom": True,
