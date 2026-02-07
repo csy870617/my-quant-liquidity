@@ -50,7 +50,7 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# CSS (네이버 증권 스타일)
+# CSS (네이버 증권 스타일 + 수정사항 반영)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <style>
@@ -375,7 +375,7 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
         return None, None
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 헬퍼 함수 (누락되었던 함수 포함)
+# 헬퍼 함수
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def detect_auto_events(ohlc_df, base_events, threshold=0.05):
     """OHLC 데이터에서 급등락(threshold 이상) 감지하여 이벤트 목록 생성"""
@@ -400,7 +400,6 @@ def detect_auto_events(ohlc_df, base_events, threshold=0.05):
             auto.append((dt_idx.strftime("%Y-%m-%d"),
                 f"급락 {pct:+.1f}%", f"하루 {pct:+.1f}% 변동", "⚡", "down"))
         existing_dates.add(dt_idx.date())
-        
     return auto
 
 def add_recession(fig, dff, has_rows=False):
@@ -572,25 +571,44 @@ fig.add_trace(go.Bar(
     name="거래량"
 ), row=2, col=1)
 
-# (5) 이벤트 마커
+# (5) 이벤트 마커 (가독성 개선: 텍스트 추가 + 간격 유지)
 if show_events:
-    # 이벤트 자동 감지 등 기존 로직 활용
-    ALL_EVENTS = sorted(CC["events"] + detect_auto_events(ohlc_raw, CC["events"]), key=lambda x: x[0])
+    # 자동 감지 이벤트 추가
+    auto_events = detect_auto_events(ohlc_filtered, CC["events"])
+    ALL_EVENTS = sorted(CC["events"] + auto_events, key=lambda x: x[0])
+    
     prev_dt = None
-    min_gap = {"일봉": 10, "주봉": 40, "월봉": 100}.get(tf, 20)
+    min_gap = {"일봉": 15, "주봉": 45, "월봉": 120}.get(tf, 20) # 간격 조정
     
     for date_str, title, _, emoji, direction in ALL_EVENTS:
         dt = pd.to_datetime(date_str)
-        if dt < ohlc_chart.index.min() or dt > ohlc_chart.index.max(): continue
-        if prev_dt and (dt - prev_dt).days < min_gap: continue
+        
+        # 차트 범위 내인지 확인
+        if dt < ohlc_chart.index.min() or dt > ohlc_chart.index.max(): 
+            continue
+            
+        # 너무 가까운 이벤트 스킵
+        if prev_dt and (dt - prev_dt).days < min_gap: 
+            continue
         
         prev_dt = dt
+        
         # 수직선
-        fig.add_vline(x=dt, line_width=1, line_dash="dot", line_color="#ccc", row="all", col=1)
-        # 텍스트
-        clr = "#f73646" if direction == "up" else "#335eff"
-        fig.add_annotation(x=dt, y=1.02, yref="paper", text=f"{emoji}", 
-                           showarrow=False, font=dict(size=14), row=1, col=1)
+        fig.add_vline(x=dt, line_width=1, line_dash="dot", line_color="rgba(100,100,100,0.3)", row="all", col=1)
+        
+        # 텍스트 마커 (이모지 + 제목)
+        clr = "#d32f2f" if direction == "up" else "#1976d2"
+        # y=1.05로 캔들 위로 띄움, 텍스트 각도 조절
+        fig.add_annotation(
+            x=dt, y=1.05, yref="paper", 
+            text=f"{emoji} {title}", 
+            showarrow=False, 
+            font=dict(size=11, color=clr),
+            textangle=-30, # 비스듬하게
+            xanchor="left",
+            yanchor="bottom",
+            row=1, col=1
+        )
 
 # (6) 리세션
 add_recession(fig, dff, True)
@@ -598,7 +616,7 @@ add_recession(fig, dff, True)
 # (7) 레이아웃 설정
 layout_opts = dict(
     plot_bgcolor="white", paper_bgcolor="white",
-    margin=dict(t=40, b=20, l=10, r=50), # 우측 여백 확보 (Y축)
+    margin=dict(t=60, b=20, l=10, r=50), # 상단 여백(t=60) 확보 (이벤트 텍스트용)
     height=600,
     hovermode="x unified",
     dragmode="pan",
@@ -611,9 +629,7 @@ layout_opts = dict(
 )
 
 # ★ 핵심: 주말 Gap 제거 (rangebreaks)
-# 일봉일 때만 적용 (주봉/월봉은 이미 연속됨)
 if tf == "일봉":
-    # 1. 간단한 주말 제거 (토, 일)
     rangebreaks = [dict(bounds=["sat", "mon"])] 
     layout_opts["xaxis"] = dict(rangebreaks=rangebreaks)
 
@@ -632,7 +648,7 @@ fig.update_yaxes(
     zeroline=False,
     row=1, col=1, secondary_y=False
 )
-# 유동성 축 (왼쪽, 숨김 혹은 작게)
+# 유동성 축 (왼쪽, 숨김)
 fig.update_yaxes(visible=False, row=1, col=1, secondary_y=True)
 # 거래량 축 (오른쪽, 간소화)
 fig.update_yaxes(side="right", showgrid=False, tickformat=".2s", row=2, col=1)
@@ -658,38 +674,77 @@ document.addEventListener('DOMContentLoaded', function() {
 """, unsafe_allow_html=True)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 하단 Daily Brief (기존 로직 유지)
+# 하단 Daily Brief (내용 복구)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-st.markdown("---") # 구분선
+st.markdown("---") 
 
-# Daily Brief 내용 재생성
-today_str = datetime.now().strftime("%Y년 %m월 %d일")
-liq_3m_chg = ((latest["Liquidity"] - df["Liquidity"].iloc[-63]) / df["Liquidity"].iloc[-63] * 100) if len(df) > 63 else 0
-sp_1m_chg = ((latest["SP500"] - df["SP500"].iloc[-21]) / df["SP500"].iloc[-21] * 100) if len(df) > 21 else 0
-
+# 풍부한 내용 복원
+liq_display = f"{CC['liq_prefix']}{liq_val:,.0f}{CC['liq_suffix']}"
 if country == "🇺🇸 미국":
-    brief_content = f"""
-    <strong>🇺🇸 미국 시장 브리핑 ({today_str})</strong><br>
-    최근 3개월간 <strong>{CC['liq_label']}</strong>는 <span class="hl">{liq_3m_chg:+.1f}%</span> 변동했습니다.
-    시장 지수는 1개월간 <span class="hl">{sp_1m_chg:+.1f}%</span> 움직였습니다.
-    연준의 정책 변화와 유동성 흐름이 주가에 미치는 영향을 주시하세요. 
-    상관계수가 {corr_val:.2f}로, 유동성과 주가의 동행성이 {'높습니다' if corr_val > 0.5 else '낮습니다'}.
-    """
-else:
-    brief_content = f"""
-    <strong>🇰🇷 한국 시장 브리핑 ({today_str})</strong><br>
-    글로벌 유동성(Fed)은 최근 3개월 <span class="hl">{liq_3m_chg:+.1f}%</span> 변동했습니다.
-    한국 증시는 대외 변수에 민감하게 반응하며, 최근 1개월 <span class="hl">{sp_1m_chg:+.1f}%</span>의 등락을 보였습니다.
-    """
+    brief_policy = (
+        '<strong>▎연준 정책 현황</strong><br>'
+        '연방기금금리 <span class="hl">3.50–3.75%</span> 유지 (1/28 FOMC). '
+        'QT는 12/1에 공식 종료되었으며, 12/12부터 <strong>준비금 관리 매입(RMP)</strong>을 통해 국채 매입을 재개하여 '
+        '사실상 대차대조표 확장으로 전환했습니다. 파월 의장 임기 만료(5월)를 앞두고 '
+        '케빈 워시(Kevin Warsh)가 차기 의장으로 지명되었으며, '
+        '시장은 하반기 1~2회 추가 인하를 기대하고 있습니다.'
+    )
+    brief_liq = (
+        f'<strong>▎유동성 데이터</strong><br>'
+        f'본원통화 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%). '
+        f'3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>. '
+        f'QT 종료와 RMP 개시로 유동성 바닥이 형성되었으며, 완만한 확장 추세에 진입했습니다.'
+    )
+    brief_market = (
+        f'<strong>▎시장 반응</strong><br>'
+        f'{idx_name} <span class="hl">{latest["SP500"]:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%). '
+        f'AI 슈퍼사이클과 OBBBA(감세 연장·R&D 비용처리) 재정부양이 주가를 지지하나, '
+        f'높은 밸류에이션(CAPE ~39배)과 시장 집중도 심화가 리스크입니다.'
+    )
+else: 
+    brief_policy = (
+        '<strong>▎한국은행 통화정책 현황</strong><br>'
+        '기준금리 <span class="hl">2.50%</span> (2025/6 기준). '
+        '글로벌 긴축 완화 흐름에 맞춰 한은도 인하 기조를 유지하고 있으며, '
+        '원/달러 환율 안정과 가계부채 관리가 추가 인하의 핵심 변수입니다. '
+        '수출 회복과 반도체 업황 개선이 경기 지지 요인입니다.'
+    )
+    brief_liq = (
+        f'<strong>▎유동성 데이터</strong><br>'
+        f'Fed 본원통화(글로벌 유동성 지표) 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%). '
+        f'3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>. '
+        f'한국 증시는 미 달러 유동성에 높은 민감도를 보이며, Fed 정책 방향이 핵심 변수입니다.'
+    )
+    brief_market = (
+        f'<strong>▎시장 반응</strong><br>'
+        f'{idx_name} <span class="hl">{latest["SP500"]:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%). '
+        f'반도체 수출 호조와 AI 수혜 기대감이 시장을 지지하나, '
+        f'미중 관세 리스크와 원화 약세, 코리아 디스카운트가 지속적 부담입니다.'
+    )
 
+brief_corr = (
+    f'<strong>▎상관관계 진단</strong><br>'
+    f'90일 롤링 상관계수 <span class="hl">{corr_val:.3f}</span>. '
+    + ('유동성과 주가가 강한 동행 관계를 유지 중입니다.' if corr_val > 0.5
+        else '유동성-주가 동조성이 약화된 구간입니다.' if corr_val > 0
+        else '음의 상관으로 전환된 특이 구간입니다.')
+)
+
+# HTML 렌더링
 st.markdown(f"""
 <div class="report-box">
     <div class="report-header">
-        <span class="report-badge">Brief</span>
-        <span class="report-title">Market Insight</span>
+        <span class="report-badge">Daily Brief</span>
+        <span class="report-date">{today_str} 기준</span>
     </div>
     <div class="report-body">
-        {brief_content}
+        {brief_policy}
+        <hr class="report-divider">
+        {brief_liq}
+        <hr class="report-divider">
+        {brief_market}
+        <hr class="report-divider">
+        {brief_corr}
     </div>
 </div>
 """, unsafe_allow_html=True)
