@@ -41,7 +41,7 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# CSS (툴바 가시성 확보 및 스타일링)
+# CSS (툴바 위치 상단 이동 및 여백 조정)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <style>
@@ -183,24 +183,17 @@ footer { display: none !important; }
     width: 100% !important;
 }
 
-/* ★ 툴바(Modebar) 오버레이 설정 (잘 보이게 수정) */
+/* ★ 툴바(Modebar) 스타일: 우측 상단 고정, 항상 표시 */
 .modebar { 
-    display: flex !important;
-    opacity: 0.8 !important; /* 기본적으로 잘 보이게 설정 */
-    position: absolute !important;
-    bottom: 10px !important;     
-    right: 10px !important;      
-    top: auto !important;
-    left: auto !important;    
-    background: rgba(255, 255, 255, 0.8) !important;
-    border-radius: 6px;
-    padding: 4px !important;
-    z-index: 9999 !important;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    opacity: 1 !important; /* 항상 표시 */
+    top: 0px !important;   /* 차트 상단 */
+    right: 0px !important; /* 차트 우측 */
+    bottom: auto !important;
+    left: auto !important;
+    background: transparent !important; /* 배경 투명 */
 }
-.modebar:hover { opacity: 1 !important; background: #fff !important; }
 .modebar-btn { font-size: 15px !important; }
-.modebar-group { padding: 0 4px !important; }
+.modebar-group { padding: 0 4px !important; background: rgba(255,255,255,0.8); border-radius: 4px; }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    모바일 반응형 (≤768px)
@@ -272,8 +265,8 @@ footer { display: none !important; }
     /* 푸터 */
     .app-footer { font-size: 0.68rem; padding: 0.8rem 0.5rem; }
 
-    /* Plotly 모드바 모바일: 터치하기 좋게 */
-    .modebar { opacity: 0.9 !important; bottom: 5px !important; right: 5px !important; }
+    /* Plotly 모드바 모바일: 상단 고정 */
+    .modebar { opacity: 1 !important; top: 2px !important; right: 2px !important; bottom: auto !important; }
     .modebar-btn { font-size: 18px !important; padding: 6px !important; }
 }
 
@@ -513,7 +506,7 @@ BASE_LAYOUT = dict(
     font=dict(family="Pretendard, sans-serif", color="#475569", size=12),
     hovermode="x unified",
     hoverlabel=dict(bgcolor="white", bordercolor="#e2e8f0", font=dict(color="#1e293b", size=12)),
-    # ★ 수정: 오른쪽 여백(r) 10px로 축소 (빈공간 제거)
+    # ★ 수정: 상단 여백 넉넉하게, 우측 여백 최소화
     margin=dict(t=50, b=30, l=40, r=10), dragmode="pan",
 )
 
