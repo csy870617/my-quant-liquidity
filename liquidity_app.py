@@ -170,7 +170,10 @@ footer { display: none !important; }
 [data-testid="stHorizontalBlock"] { gap: 0.5rem !important; }
 .stSelectbox { margin-bottom: -0.6rem !important; }
 .stRadio { margin-bottom: -0.6rem !important; }
-[data-testid="stRadio"] > div { gap: 0.3rem !important; }
+[data-testid="stRadio"] > div { 
+    gap: 0.3rem !important; 
+    flex-direction: row !important; /* ★ 모바일에서도 가로 배치 강제 */
+}
 .app-footer { text-align:center; color:var(--text-muted); font-size:0.75rem; margin-top:2rem; padding:1rem; border-top:1px solid var(--border); }
 
 /* ── Plotly 차트 ── */
@@ -568,9 +571,8 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 레이아웃 컨테이너 설정 (화면 배치 순서 재조정)
+# 레이아웃 컨테이너 설정
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# KPI와 Daily Brief가 먼저 보이도록 컨테이너를 생성
 kpi_container = st.container()
 brief_container = st.container()
 st.write("") # 간격
@@ -578,7 +580,6 @@ st.write("") # 간격
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 통합 컨트롤 바 (국가 · 지수 · 기간 · 봉주기 · 이벤트)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 실제 실행 순서는 여기지만, 화면 상에서는 위의 컨테이너들 아래에 위치함
 ctrl1, ctrl2, ctrl3, ctrl4, ctrl5 = st.columns([1.1, 1.1, 1.1, 1.8, 0.7])
 with ctrl1:
     country = st.selectbox("🌍 국가", list(COUNTRY_CONFIG.keys()), index=0)
@@ -638,7 +639,7 @@ AUTO_EVENTS = detect_auto_events(ohlc_raw, BASE_EVENTS)
 ALL_EVENTS = sorted(BASE_EVENTS + AUTO_EVENTS, key=lambda x: x[0])
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# KPI (컨테이너에 출력)
+# KPI
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with kpi_container:
     latest = df.dropna(subset=["Liquidity", "SP500"]).iloc[-1]
@@ -685,7 +686,7 @@ with kpi_container:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Daily Brief (컨테이너에 출력)
+# Daily Brief
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with brief_container:
     today_str = datetime.now().strftime("%Y년 %m월 %d일")
@@ -875,17 +876,20 @@ fig_candle.update_layout(
 )
 fig_candle.update_xaxes(ax(), row=1, col=1)
 fig_candle.update_xaxes(ax(), row=2, col=1)
-fig_candle.update_yaxes(ax(dict(title_text=idx_name)), row=1, col=1, secondary_y=False)
+# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="")
+fig_candle.update_yaxes(ax(dict(title_text="")), row=1, col=1, secondary_y=False)
 # 유동성 Y축 범위 계산: 데이터 하한 기반으로 동적 설정
 liq_min_val = liq_series.min()
 liq_max_val = liq_series.max()
 liq_y_min = liq_min_val * 0.85  # 하한 15% 여유
 liq_y_max = liq_y_min + (liq_max_val - liq_y_min) / 0.6  # 변동 시각화 확대
 
-fig_candle.update_yaxes(ax(dict(title_text=f"{CC['liq_label']} ({CC['liq_unit']})",
+# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="")
+fig_candle.update_yaxes(ax(dict(title_text="",
     title_font=dict(color="#3b82f6"), tickfont=dict(color="#3b82f6", size=10),
     showgrid=False, range=[liq_y_min, liq_y_max])), row=1, col=1, secondary_y=True)
-fig_candle.update_yaxes(ax(dict(title_text="거래량", tickformat=".2s", fixedrange=True)), row=2, col=1)
+# ★ 수정: 차트 축 라벨 텍스트 제거 (title_text="")
+fig_candle.update_yaxes(ax(dict(title_text="", tickformat=".2s", fixedrange=True)), row=2, col=1)
 
 st.plotly_chart(fig_candle, use_container_width=True,
                 config={"scrollZoom": True,
