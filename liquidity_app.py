@@ -754,7 +754,10 @@ def load_data(idx_ticker, liq_ticker):
     try:
         import yfinance as yf
         idx_data = yf.download(idx_ticker, start=start_date, end=end_date, progress=False)
-        idx_data.index = pd.to_datetime(idx_data.index)
+        # 인덱스를 DatetimeIndex로 명시적 변환
+        idx_data.index = pd.DatetimeIndex(pd.to_datetime(idx_data.index))
+        # 날짜만 남기기 (시간 제거)
+        idx_data.index = idx_data.index.normalize()
     except Exception as e:
         st.error(f"지수 데이터 로드 실패: {e}")
         return None
@@ -762,16 +765,27 @@ def load_data(idx_ticker, liq_ticker):
     # 유동성 데이터 (FRED)
     try:
         liq_data = web.DataReader(liq_ticker, "fred", start_date, end_date)
-        liq_data.index = pd.to_datetime(liq_data.index)
+        # 인덱스를 DatetimeIndex로 명시적 변환
+        liq_data.index = pd.DatetimeIndex(pd.to_datetime(liq_data.index))
+        # 날짜만 남기기 (시간 제거)
+        liq_data.index = liq_data.index.normalize()
         liq_data.columns = ["Liquidity"]
     except Exception as e:
         st.error(f"유동성 데이터 로드 실패: {e}")
         return None
     
-    # 병합
+    # 병합 (인덱스 타입 일치 확인)
     df = idx_data[["Open", "High", "Low", "Close", "Volume"]].copy()
-    df = df.merge(liq_data, left_index=True, right_index=True, how="left")
-    df["Liquidity"] = df["Liquidity"].fillna(method="ffill")
+    
+    # 병합 전 인덱스 정렬
+    df = df.sort_index()
+    liq_data = liq_data.sort_index()
+    
+    # 병합 수행
+    df = df.join(liq_data, how="left")
+    
+    # 결측치 전방향 채우기 (pandas 최신 버전 호환)
+    df["Liquidity"] = df["Liquidity"].ffill()
     
     # 이동평균
     df["MA20"] = df["Close"].rolling(20).mean()
