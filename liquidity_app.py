@@ -285,9 +285,9 @@ COUNTRY_CONFIG = {
     "🇺🇸 미국": {
         "indices": {"NASDAQ": "^IXIC", "S&P 500": "^GSPC", "다우존스": "^DJI"},
         "default_idx": 0,
-        "fred_liq": "BOGMBASE",
-        "fred_rec": "USREC",
-        "liq_divisor": 1,
+        "fred_liq": "BOGMBASE",      # 본원통화 (Billions of USD — FRED 단위 그대로)
+        "fred_rec": "USREC",          # 경기침체 지표
+        "liq_divisor": 1,             # 이미 $B 단위
         "liq_label": "본원통화",
         "liq_unit": "$B",
         "liq_prefix": "$",
@@ -298,9 +298,9 @@ COUNTRY_CONFIG = {
     "🇰🇷 대한민국": {
         "indices": {"KOSPI": "^KS11", "KOSDAQ": "^KQ11"},
         "default_idx": 0,
-        "fred_liq": "BOGMBASE",
-        "fred_rec": "USREC",
-        "liq_divisor": 1,
+        "fred_liq": "BOGMBASE",        # Fed 본원통화 = 글로벌 유동성 지표
+        "fred_rec": "USREC",           # 미국 경기침체 (글로벌 영향)
+        "liq_divisor": 1,              # 이미 $B 단위
         "liq_label": "글로벌 유동성 (Fed)",
         "liq_unit": "$B",
         "liq_prefix": "$",
@@ -317,7 +317,7 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
         end_dt = datetime.now()
         fetch_start = end_dt - timedelta(days=365 * 14)
 
-        # [A] FRED 데이터
+        # [A] FRED 데이터 (유동성)
         try:
             fred_codes = [fred_liq]
             if fred_rec:
@@ -333,7 +333,7 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
             st.error(f"FRED 데이터 로드 실패: {e}")
             return None, None
 
-        # [B] 주가 데이터
+        # [B] 주가 데이터 (yfinance)
         try:
             import yfinance as yf
             yf_data = yf.download(ticker, start=fetch_start, end=end_dt, progress=False)
@@ -373,6 +373,48 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
     except Exception as e:
         st.error(f"시스템 오류: {str(e)}")
         return None, None
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 헬퍼 함수 (누락되었던 함수 포함)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def detect_auto_events(ohlc_df, base_events, threshold=0.05):
+    """OHLC 데이터에서 급등락(threshold 이상) 감지하여 이벤트 목록 생성"""
+    if ohlc_df is None or ohlc_df.empty or len(ohlc_df) < 2:
+        return []
+    
+    daily_ret = ohlc_df["Close"].pct_change()
+    existing_dates = {pd.to_datetime(d).date() for d, *_ in base_events}
+    auto = []
+    
+    for dt_idx, ret in daily_ret.items():
+        if pd.isna(ret) or dt_idx.date() in existing_dates:
+            continue
+        if abs(ret) < threshold:
+            continue
+            
+        pct = ret * 100
+        if ret > 0:
+            auto.append((dt_idx.strftime("%Y-%m-%d"),
+                f"급등 {pct:+.1f}%", f"하루 {pct:+.1f}% 변동", "🔥", "up"))
+        else:
+            auto.append((dt_idx.strftime("%Y-%m-%d"),
+                f"급락 {pct:+.1f}%", f"하루 {pct:+.1f}% 변동", "⚡", "down"))
+        existing_dates.add(dt_idx.date())
+        
+    return auto
+
+def add_recession(fig, dff, has_rows=False):
+    rec_idx = dff[dff["Recession"] == 1].index
+    if rec_idx.empty:
+        return
+    groups, start = [], rec_idx[0]
+    for i in range(1, len(rec_idx)):
+        if (rec_idx[i] - rec_idx[i - 1]).days > 5:
+            groups.append((start, rec_idx[i - 1])); start = rec_idx[i]
+    groups.append((start, rec_idx[-1]))
+    for s, e in groups:
+        kw = dict(row="all", col=1) if has_rows else {}
+        fig.add_vrect(x0=s, x1=e, fillcolor="rgba(239,68,68,0.04)", layer="below", line_width=0, **kw)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 컨트롤 바 (상단 배치)
@@ -618,21 +660,9 @@ document.addEventListener('DOMContentLoaded', function() {
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 하단 Daily Brief (기존 로직 유지)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# (기존 코드의 Daily Brief 로직을 그대로 사용하되 디자인만 CSS로 변경됨)
-with brief_container:
-    # ... (기존 Daily Brief 로직과 동일, 위에서 정의한 컨테이너에 내용 채움)
-    pass 
-
-# (Daily Brief 내용을 여기에 다시 채워줍니다 - 코드 중복 방지를 위해 위쪽 로직이 실행됨)
-# 실제로는 위쪽 'with brief_container' 블록에서 이미 렌더링 됩니다.
-# 다만, 순서상 차트 아래에 배치하고 싶다면 컨테이너 순서를 조정하면 됩니다.
-# 현재 코드 구조상: 헤더 -> KPI바 -> (컨트롤) -> (차트) -> Daily Brief 순서가 자연스럽습니다.
-# 기존 코드의 Daily Brief는 위쪽에서 이미 렌더링 되었습니다.
-# 네이버 스타일에서는 차트 아래에 뉴스가 나오므로, Brief를 차트 아래로 옮기겠습니다.
-
 st.markdown("---") # 구분선
 
-# Daily Brief 다시 렌더링 (위쪽 로직 복사)
+# Daily Brief 내용 재생성
 today_str = datetime.now().strftime("%Y년 %m월 %d일")
 liq_3m_chg = ((latest["Liquidity"] - df["Liquidity"].iloc[-63]) / df["Liquidity"].iloc[-63] * 100) if len(df) > 63 else 0
 sp_1m_chg = ((latest["SP500"] - df["SP500"].iloc[-21]) / df["SP500"].iloc[-21] * 100) if len(df) > 21 else 0
