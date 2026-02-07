@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import numpy as np
+from zoneinfo import ZoneInfo
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 페이지 설정
@@ -14,8 +15,6 @@ st.set_page_config(page_title="유동성 × 시장 분석기", page_icon="📊",
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 자동 새로고침 (PST 09:00/18:00 + KST 09:00/18:00 = 하루 4회)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-from zoneinfo import ZoneInfo
-
 def get_next_refresh():
     """다음 새로고침 시각까지 남은 초 계산 (PST 09/18 + KST 09/18)"""
     utc_now = datetime.now(ZoneInfo("UTC"))
@@ -569,8 +568,17 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 레이아웃 컨테이너 설정 (화면 배치 순서 재조정)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# KPI와 Daily Brief가 먼저 보이도록 컨테이너를 생성
+kpi_container = st.container()
+brief_container = st.container()
+st.write("") # 간격
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 통합 컨트롤 바 (국가 · 지수 · 기간 · 봉주기 · 이벤트)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 실제 실행 순서는 여기지만, 화면 상에서는 위의 컨테이너들 아래에 위치함
 ctrl1, ctrl2, ctrl3, ctrl4, ctrl5 = st.columns([1.1, 1.1, 1.1, 1.8, 0.7])
 with ctrl1:
     country = st.selectbox("🌍 국가", list(COUNTRY_CONFIG.keys()), index=0)
@@ -630,136 +638,138 @@ AUTO_EVENTS = detect_auto_events(ohlc_raw, BASE_EVENTS)
 ALL_EVENTS = sorted(BASE_EVENTS + AUTO_EVENTS, key=lambda x: x[0])
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# KPI
+# KPI (컨테이너에 출력)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-latest = df.dropna(subset=["Liquidity", "SP500"]).iloc[-1]
-liq_val = latest["Liquidity"]
-sp_val = latest["SP500"]
-liq_yoy = latest["Liq_YoY"] if pd.notna(latest.get("Liq_YoY")) else 0
-sp_yoy = latest["SP_YoY"] if pd.notna(latest.get("SP_YoY")) else 0
-corr_val = df["Corr_90d"].dropna().iloc[-1] if len(df["Corr_90d"].dropna()) > 0 else 0
+with kpi_container:
+    latest = df.dropna(subset=["Liquidity", "SP500"]).iloc[-1]
+    liq_val = latest["Liquidity"]
+    sp_val = latest["SP500"]
+    liq_yoy = latest["Liq_YoY"] if pd.notna(latest.get("Liq_YoY")) else 0
+    sp_yoy = latest["SP_YoY"] if pd.notna(latest.get("SP_YoY")) else 0
+    corr_val = df["Corr_90d"].dropna().iloc[-1] if len(df["Corr_90d"].dropna()) > 0 else 0
 
-def delta_html(val):
-    cls = "up" if val >= 0 else "down"
-    arrow = "▲" if val >= 0 else "▼"
-    return f'<div class="kpi-delta {cls}">{arrow} YoY {val:+.1f}%</div>'
+    def delta_html(val):
+        cls = "up" if val >= 0 else "down"
+        arrow = "▲" if val >= 0 else "▼"
+        return f'<div class="kpi-delta {cls}">{arrow} YoY {val:+.1f}%</div>'
 
-corr_cls = "up" if corr_val >= 0.3 else "down"
-corr_desc = "강한 양의 상관" if corr_val >= 0.5 else ("약한 양의 상관" if corr_val >= 0 else "음의 상관")
+    corr_cls = "up" if corr_val >= 0.3 else "down"
+    corr_desc = "강한 양의 상관" if corr_val >= 0.5 else ("약한 양의 상관" if corr_val >= 0 else "음의 상관")
 
-liq_display = f"{CC['liq_prefix']}{liq_val:,.0f}{CC['liq_suffix']}"
+    liq_display = f"{CC['liq_prefix']}{liq_val:,.0f}{CC['liq_suffix']}"
 
-st.markdown(f"""
-<div class="kpi-grid">
-    <div class="kpi blue">
-        <div class="kpi-label">💵 {CC['liq_label']}</div>
-        <div class="kpi-value">{liq_display}</div>
-        {delta_html(liq_yoy)}
+    st.markdown(f"""
+    <div class="kpi-grid">
+        <div class="kpi blue">
+            <div class="kpi-label">💵 {CC['liq_label']}</div>
+            <div class="kpi-value">{liq_display}</div>
+            {delta_html(liq_yoy)}
+        </div>
+        <div class="kpi red">
+            <div class="kpi-label">📈 {idx_name}</div>
+            <div class="kpi-value">{sp_val:,.0f}</div>
+            {delta_html(sp_yoy)}
+        </div>
+        <div class="kpi green">
+            <div class="kpi-label">🔗 90일 상관계수</div>
+            <div class="kpi-value">{corr_val:.3f}</div>
+            <div class="kpi-delta {corr_cls}">{corr_desc}</div>
+        </div>
+        <div class="kpi purple">
+            <div class="kpi-label">📅 데이터 범위</div>
+            <div class="kpi-value" style="font-size:1.05rem">{df.index.min().strftime('%Y.%m')} – {df.index.max().strftime('%Y.%m')}</div>
+            <div class="kpi-delta up">{len(df):,}일</div>
+        </div>
     </div>
-    <div class="kpi red">
-        <div class="kpi-label">📈 {idx_name}</div>
-        <div class="kpi-value">{sp_val:,.0f}</div>
-        {delta_html(sp_yoy)}
-    </div>
-    <div class="kpi green">
-        <div class="kpi-label">🔗 90일 상관계수</div>
-        <div class="kpi-value">{corr_val:.3f}</div>
-        <div class="kpi-delta {corr_cls}">{corr_desc}</div>
-    </div>
-    <div class="kpi purple">
-        <div class="kpi-label">📅 데이터 범위</div>
-        <div class="kpi-value" style="font-size:1.05rem">{df.index.min().strftime('%Y.%m')} – {df.index.max().strftime('%Y.%m')}</div>
-        <div class="kpi-delta up">{len(df):,}일</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Daily Brief (국가별 동적 생성)
+# Daily Brief (컨테이너에 출력)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-today_str = datetime.now().strftime("%Y년 %m월 %d일")
-liq_3m = df["Liquidity"].dropna()
-liq_3m_chg = ((liq_3m.iloc[-1] - liq_3m.iloc[-63]) / liq_3m.iloc[-63] * 100) if len(liq_3m) > 63 else 0
-sp_1m = df["SP500"].dropna()
-sp_1m_chg = ((sp_1m.iloc[-1] - sp_1m.iloc[-21]) / sp_1m.iloc[-21] * 100) if len(sp_1m) > 21 else 0
+with brief_container:
+    today_str = datetime.now().strftime("%Y년 %m월 %d일")
+    liq_3m = df["Liquidity"].dropna()
+    liq_3m_chg = ((liq_3m.iloc[-1] - liq_3m.iloc[-63]) / liq_3m.iloc[-63] * 100) if len(liq_3m) > 63 else 0
+    sp_1m = df["SP500"].dropna()
+    sp_1m_chg = ((sp_1m.iloc[-1] - sp_1m.iloc[-21]) / sp_1m.iloc[-21] * 100) if len(sp_1m) > 21 else 0
 
-if corr_val > 0.5 and liq_3m_chg > 0:
-    signal_class, signal_text = "signal-bullish", "🟢 유동성 확장 + 강한 상관 → 주가 상승 지지"
-elif corr_val < 0 or liq_3m_chg < -1:
-    signal_class, signal_text = "signal-bearish", "🔴 유동성 수축 또는 상관 이탈 → 경계 필요"
-else:
-    signal_class, signal_text = "signal-neutral", "🟡 혼합 시그널 → 방향성 주시"
+    if corr_val > 0.5 and liq_3m_chg > 0:
+        signal_class, signal_text = "signal-bullish", "🟢 유동성 확장 + 강한 상관 → 주가 상승 지지"
+    elif corr_val < 0 or liq_3m_chg < -1:
+        signal_class, signal_text = "signal-bearish", "🔴 유동성 수축 또는 상관 이탈 → 경계 필요"
+    else:
+        signal_class, signal_text = "signal-neutral", "🟡 혼합 시그널 → 방향성 주시"
 
-if country == "🇺🇸 미국":
-    brief_policy = (
-        '<strong>▎연준 정책 현황</strong><br>'
-        '연방기금금리 <span class="hl">3.50–3.75%</span> 유지 (1/28 FOMC). '
-        'QT는 12/1에 공식 종료되었으며, 12/12부터 <strong>준비금 관리 매입(RMP)</strong>을 통해 국채 매입을 재개하여 '
-        '사실상 대차대조표 확장으로 전환했습니다. 파월 의장 임기 만료(5월)를 앞두고 '
-        '케빈 워시(Kevin Warsh)가 차기 의장으로 지명되었으며, '
-        '시장은 하반기 1~2회 추가 인하를 기대하고 있습니다.'
-    )
-    brief_liq = (
-        f'<strong>▎유동성 데이터</strong><br>'
-        f'본원통화 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%). '
-        f'3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>. '
-        f'QT 종료와 RMP 개시로 유동성 바닥이 형성되었으며, 완만한 확장 추세에 진입했습니다.'
-    )
-    brief_market = (
-        f'<strong>▎시장 반응</strong><br>'
-        f'{idx_name} <span class="hl">{sp_val:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%). '
-        f'AI 슈퍼사이클과 OBBBA(감세 연장·R&D 비용처리) 재정부양이 주가를 지지하나, '
-        f'높은 밸류에이션(CAPE ~39배)과 시장 집중도 심화가 리스크입니다.'
-    )
-else:  # 한국
-    brief_policy = (
-        '<strong>▎한국은행 통화정책 현황</strong><br>'
-        '기준금리 <span class="hl">2.50%</span> (2025/6 기준). '
-        '글로벌 긴축 완화 흐름에 맞춰 한은도 인하 기조를 유지하고 있으며, '
-        '원/달러 환율 안정과 가계부채 관리가 추가 인하의 핵심 변수입니다. '
-        '수출 회복과 반도체 업황 개선이 경기 지지 요인입니다.'
-    )
-    brief_liq = (
-        f'<strong>▎유동성 데이터</strong><br>'
-        f'Fed 본원통화(글로벌 유동성 지표) 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%). '
-        f'3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>. '
-        f'한국 증시는 미 달러 유동성에 높은 민감도를 보이며, Fed 정책 방향이 핵심 변수입니다.'
-    )
-    brief_market = (
-        f'<strong>▎시장 반응</strong><br>'
-        f'{idx_name} <span class="hl">{sp_val:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%). '
-        f'반도체 수출 호조와 AI 수혜 기대감이 시장을 지지하나, '
-        f'미중 관세 리스크와 원화 약세, 코리아 디스카운트가 지속적 부담입니다.'
+    if country == "🇺🇸 미국":
+        brief_policy = (
+            '<strong>▎연준 정책 현황</strong><br>'
+            '연방기금금리 <span class="hl">3.50–3.75%</span> 유지 (1/28 FOMC). '
+            'QT는 12/1에 공식 종료되었으며, 12/12부터 <strong>준비금 관리 매입(RMP)</strong>을 통해 국채 매입을 재개하여 '
+            '사실상 대차대조표 확장으로 전환했습니다. 파월 의장 임기 만료(5월)를 앞두고 '
+            '케빈 워시(Kevin Warsh)가 차기 의장으로 지명되었으며, '
+            '시장은 하반기 1~2회 추가 인하를 기대하고 있습니다.'
+        )
+        brief_liq = (
+            f'<strong>▎유동성 데이터</strong><br>'
+            f'본원통화 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%). '
+            f'3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>. '
+            f'QT 종료와 RMP 개시로 유동성 바닥이 형성되었으며, 완만한 확장 추세에 진입했습니다.'
+        )
+        brief_market = (
+            f'<strong>▎시장 반응</strong><br>'
+            f'{idx_name} <span class="hl">{sp_val:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%). '
+            f'AI 슈퍼사이클과 OBBBA(감세 연장·R&D 비용처리) 재정부양이 주가를 지지하나, '
+            f'높은 밸류에이션(CAPE ~39배)과 시장 집중도 심화가 리스크입니다.'
+        )
+    else:  # 한국
+        brief_policy = (
+            '<strong>▎한국은행 통화정책 현황</strong><br>'
+            '기준금리 <span class="hl">2.50%</span> (2025/6 기준). '
+            '글로벌 긴축 완화 흐름에 맞춰 한은도 인하 기조를 유지하고 있으며, '
+            '원/달러 환율 안정과 가계부채 관리가 추가 인하의 핵심 변수입니다. '
+            '수출 회복과 반도체 업황 개선이 경기 지지 요인입니다.'
+        )
+        brief_liq = (
+            f'<strong>▎유동성 데이터</strong><br>'
+            f'Fed 본원통화(글로벌 유동성 지표) 최신치 <span class="hl">{liq_display}</span> (YoY {liq_yoy:+.1f}%). '
+            f'3개월 변화율 <span class="hl">{liq_3m_chg:+.1f}%</span>. '
+            f'한국 증시는 미 달러 유동성에 높은 민감도를 보이며, Fed 정책 방향이 핵심 변수입니다.'
+        )
+        brief_market = (
+            f'<strong>▎시장 반응</strong><br>'
+            f'{idx_name} <span class="hl">{sp_val:,.0f}</span> (1개월 {sp_1m_chg:+.1f}%, YoY {sp_yoy:+.1f}%). '
+            f'반도체 수출 호조와 AI 수혜 기대감이 시장을 지지하나, '
+            f'미중 관세 리스크와 원화 약세, 코리아 디스카운트가 지속적 부담입니다.'
+        )
+
+    brief_corr = (
+        f'<strong>▎상관관계 진단</strong><br>'
+        f'90일 롤링 상관계수 <span class="hl">{corr_val:.3f}</span>. '
+        + ('유동성과 주가가 강한 동행 관계를 유지 중입니다.' if corr_val > 0.5
+           else '유동성-주가 동조성이 약화된 구간입니다.' if corr_val > 0
+           else '음의 상관으로 전환된 특이 구간입니다.')
     )
 
-brief_corr = (
-    f'<strong>▎상관관계 진단</strong><br>'
-    f'90일 롤링 상관계수 <span class="hl">{corr_val:.3f}</span>. '
-    + ('유동성과 주가가 강한 동행 관계를 유지 중입니다.' if corr_val > 0.5
-       else '유동성-주가 동조성이 약화된 구간입니다.' if corr_val > 0
-       else '음의 상관으로 전환된 특이 구간입니다.')
-)
-
-st.markdown(
-    f'<div class="report-box">'
-    f'<div class="report-header">'
-    f'<span class="report-badge">Daily Brief</span>'
-    f'<span class="report-date">{today_str} 기준</span></div>'
-    f'<div class="report-title">📋 오늘의 유동성 &amp; 시장 브리핑</div>'
-    f'<div class="report-body">'
-    f'{brief_policy}'
-    f'<hr class="report-divider">'
-    f'{brief_liq}'
-    f'<hr class="report-divider">'
-    f'{brief_market}'
-    f'<hr class="report-divider">'
-    f'{brief_corr}'
-    f'</div>'
-    f'<div class="report-signal {signal_class}">{signal_text}</div>'
-    f'</div>',
-    unsafe_allow_html=True,
-)
+    st.markdown(
+        f'<div class="report-box">'
+        f'<div class="report-header">'
+        f'<span class="report-badge">Daily Brief</span>'
+        f'<span class="report-date">{today_str} 기준</span></div>'
+        f'<div class="report-title">📋 오늘의 유동성 &amp; 시장 브리핑</div>'
+        f'<div class="report-body">'
+        f'{brief_policy}'
+        f'<hr class="report-divider">'
+        f'{brief_liq}'
+        f'<hr class="report-divider">'
+        f'{brief_market}'
+        f'<hr class="report-divider">'
+        f'{brief_corr}'
+        f'</div>'
+        f'<div class="report-signal {signal_class}">{signal_text}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 차트
