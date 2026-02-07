@@ -70,6 +70,7 @@ html, body, [data-testid="stAppViewContainer"] {
 [data-testid="stHeader"] { background: transparent !important; }
 .block-container { padding: 1.5rem 2rem 3rem; max-width: 1280px; }
 
+/* ── 페이지 헤더 ── */
 .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 0.4rem; }
 .page-header-icon {
     width: 44px; height: 44px;
@@ -79,6 +80,7 @@ html, body, [data-testid="stAppViewContainer"] {
 .page-title { font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px; }
 .page-desc { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6; }
 
+/* ── 카드 ── */
 .card {
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
     padding: 1.25rem 1.4rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
@@ -90,8 +92,8 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 .card-title .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 
+/* ── KPI ── */
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.2rem; }
-@media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 .kpi {
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
     padding: 1.1rem 1.3rem; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
@@ -107,6 +109,7 @@ html, body, [data-testid="stAppViewContainer"] {
 .kpi-delta.up { color: var(--accent-green); }
 .kpi-delta.down { color: var(--accent-red); }
 
+/* ── 리포트 박스 ── */
 .report-box {
     background: linear-gradient(135deg, #eff6ff, #f0fdf4); border: 1px solid #bfdbfe;
     border-radius: 14px; padding: 1.4rem 1.6rem; margin-bottom: 1.2rem;
@@ -127,26 +130,30 @@ html, body, [data-testid="stAppViewContainer"] {
 .signal-neutral { background: rgba(245,158,11,0.1); color: var(--accent-amber); border: 1px solid rgba(245,158,11,0.2); }
 .signal-bearish { background: rgba(239,68,68,0.1); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.2); }
 
+/* ── 새로고침 바 ── */
 .refresh-bar {
     display: flex; align-items: center; justify-content: center; gap: 8px;
     background: #f1f5f9; border: 1px solid var(--border); border-radius: 10px;
     padding: 6px 16px; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;
+    flex-wrap: wrap;
 }
-.refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); animation: pulse 2s infinite; }
+.refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); animation: pulse 2s infinite; flex-shrink: 0; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
+/* ── 타임라인 ── */
 .timeline { display: flex; flex-direction: column; gap: 0; }
 .tl-item { display: flex; align-items: flex-start; gap: 14px; padding: 0.65rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
 .tl-item:last-child { border-bottom: none; }
 .tl-date { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--text-muted); min-width: 82px; flex-shrink: 0; padding-top: 1px; }
 .tl-icon { font-size: 1.05rem; flex-shrink: 0; }
-.tl-content { flex: 1; }
+.tl-content { flex: 1; min-width: 0; }
 .tl-title { font-weight: 600; color: var(--text-primary); }
-.tl-desc { color: var(--text-secondary); font-size: 0.8rem; margin-top: 2px; }
+.tl-desc { color: var(--text-secondary); font-size: 0.8rem; margin-top: 2px; word-break: keep-all; }
 .tl-dir { font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 4px; flex-shrink: 0; }
 .tl-dir.up { background: rgba(16,185,129,0.1); color: var(--accent-green); }
 .tl-dir.down { background: rgba(239,68,68,0.1); color: var(--accent-red); }
 
+/* ── 가이드 박스 ── */
 .guide-box {
     background: #f8fafc; border: 1px solid var(--border); border-radius: 10px;
     padding: 0.9rem 1.2rem; font-size: 0.84rem; color: var(--text-secondary);
@@ -154,8 +161,7 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 .guide-box strong { color: var(--text-primary); }
 
-
-
+/* ── 공통 ── */
 div[data-testid="stMetric"] { display: none; }
 footer { display: none !important; }
 .stSelectbox label, .stMultiSelect label, .stSlider label, .stRadio label {
@@ -163,18 +169,95 @@ footer { display: none !important; }
 }
 .app-footer { text-align:center; color:var(--text-muted); font-size:0.75rem; margin-top:2rem; padding:1rem; border-top:1px solid var(--border); }
 
-/* 모바일 터치: Plotly 차트 핀치 줌 활성화 */
+/* ── Plotly 차트 ── */
 .js-plotly-plot, .plotly, .js-plotly-plot .plotly,
 [data-testid="stPlotlyChart"], [data-testid="stPlotlyChart"] > div,
 .stPlotlyChart, .stPlotlyChart > div > div > div {
     touch-action: none !important;
     -webkit-touch-callout: none;
 }
-/* Plotly 모드바 스타일 */
 .modebar { opacity: 0.7 !important; }
 .modebar:hover { opacity: 1 !important; }
 .modebar-btn { font-size: 16px !important; }
 .modebar-group { padding: 0 2px !important; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   모바일 반응형 (≤768px)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+@media (max-width: 768px) {
+    /* 레이아웃 */
+    .block-container { padding: 1rem 0.8rem 2rem !important; }
+
+    /* 헤더 축소 */
+    .page-header { gap: 10px; margin-bottom: 0.2rem; }
+    .page-header-icon { width: 36px; height: 36px; font-size: 1.1rem; border-radius: 10px; }
+    .page-title { font-size: 1.2rem; }
+    .page-desc { font-size: 0.8rem; margin-bottom: 1rem; line-height: 1.5; }
+
+    /* 새로고침 바 — 핵심 정보만 */
+    .refresh-bar { font-size: 0.68rem; padding: 5px 10px; gap: 4px; }
+
+    /* KPI 2열 + 콤팩트 */
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 0.8rem; }
+    .kpi { padding: 0.8rem 0.9rem; border-radius: 10px; }
+    .kpi-label { font-size: 0.65rem; margin-bottom: 0.2rem; }
+    .kpi-value { font-size: 1.1rem; }
+    .kpi-delta { font-size: 0.68rem; }
+
+    /* 리포트 박스 콤팩트 */
+    .report-box { padding: 1rem 1rem; border-radius: 10px; margin-bottom: 0.8rem; }
+    .report-title { font-size: 0.95rem; }
+    .report-body { font-size: 0.82rem; line-height: 1.7; }
+    .report-signal { font-size: 0.73rem; padding: 4px 10px; }
+
+    /* Streamlit 위젯 콤팩트 */
+    .stSelectbox, .stRadio, .stToggle {
+        margin-bottom: -0.5rem !important;
+    }
+    .stSelectbox label, .stMultiSelect label, .stSlider label, .stRadio label {
+        font-size: 0.72rem !important;
+    }
+    .stSelectbox > div > div { min-height: 34px !important; font-size: 0.82rem !important; }
+    [data-testid="stRadio"] > div { gap: 0.3rem !important; }
+    [data-testid="stRadio"] label { font-size: 0.78rem !important; padding: 0.2rem 0.5rem !important; }
+
+    /* 가이드 박스 줄바꿈 정리 */
+    .guide-box { padding: 0.7rem 0.9rem; font-size: 0.76rem; line-height: 1.6; }
+
+    /* 카드 콤팩트 */
+    .card { padding: 1rem 1rem; border-radius: 10px; }
+    .card-title { font-size: 0.72rem; margin-bottom: 0.6rem; }
+
+    /* 타임라인 콤팩트 */
+    .tl-item { gap: 8px; padding: 0.5rem 0; font-size: 0.78rem; }
+    .tl-date { font-size: 0.67rem; min-width: 68px; }
+    .tl-icon { font-size: 0.9rem; }
+    .tl-title { font-size: 0.8rem; }
+    .tl-desc { font-size: 0.72rem; }
+    .tl-dir { font-size: 0.62rem; padding: 1px 5px; }
+
+    /* 푸터 */
+    .app-footer { font-size: 0.68rem; padding: 0.8rem 0.5rem; }
+
+    /* Plotly 모드바 모바일 최적화 */
+    .modebar { opacity: 1 !important; }
+    .modebar-btn { font-size: 18px !important; padding: 4px !important; }
+    .modebar-group { padding: 0 1px !important; }
+}
+
+/* ━━ 초소형 화면 (≤480px) ━━ */
+@media (max-width: 480px) {
+    .block-container { padding: 0.7rem 0.5rem 1.5rem !important; }
+    .page-header-icon { width: 32px; height: 32px; font-size: 1rem; }
+    .page-title { font-size: 1.05rem; letter-spacing: -0.3px; }
+    .page-desc { font-size: 0.75rem; margin-bottom: 0.8rem; }
+    .kpi-value { font-size: 0.95rem; }
+    .kpi-label { font-size: 0.6rem; letter-spacing: 0.3px; }
+    .report-title { font-size: 0.88rem; }
+    .report-body { font-size: 0.78rem; line-height: 1.6; }
+    .tl-date { min-width: 60px; font-size: 0.62rem; }
+    .tl-desc { display: none; }  /* 초소형에선 설명 숨김 */
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -451,18 +534,18 @@ st.markdown("""
 # 새로고침 상태 바
 now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 next_str = NEXT_REFRESH_TIME.strftime("%m/%d %H:%M KST")
-st.markdown(f"""
-<div class="refresh-bar">
-    <span class="refresh-dot"></span>
-    마지막 갱신: {now_str} &nbsp;·&nbsp; 다음 자동 갱신: {next_str}
-    &nbsp;·&nbsp; 하루 4회: PST 09:00/18:00 + KST 09:00/18:00
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f'<div class="refresh-bar">'
+    f'<span class="refresh-dot"></span>'
+    f'갱신: {now_str} · 다음: {next_str}'
+    f'</div>',
+    unsafe_allow_html=True,
+)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 국가 선택 & 데이터 로드
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-country_col, _ = st.columns([1.5, 5.5])
+country_col, _ = st.columns([1, 2])
 with country_col:
     country = st.selectbox("🌍 국가", list(COUNTRY_CONFIG.keys()), index=0)
 
@@ -646,14 +729,16 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 차트 컨트롤 (지수 + 분석기간 + 봉주기 + 이벤트)
+# 차트 컨트롤 (2행: 셀렉트 + 라디오/토글)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-c1, c2, c3, c4 = st.columns([1.3, 1.3, 2.4, 1])
+c1, c2 = st.columns(2)
 with c1:
     idx_name = st.selectbox("📈 지수", list(IDX_OPTIONS.keys()), key="idx_select")
     idx_ticker = IDX_OPTIONS[idx_name]
 with c2:
     period = st.selectbox("📅 분석 기간", ["3년", "5년", "7년", "10년", "전체"], index=3)
+
+c3, c4 = st.columns([3, 1])
 with c3:
     tf = st.radio("🕯️ 봉 주기", ["일봉", "주봉", "월봉"], horizontal=True, key="candle_tf", index=2)
 with c4:
@@ -780,46 +865,14 @@ fig_candle.update_yaxes(ax(dict(title_text=f"{CC['liq_label']} ({CC['liq_unit']}
     showgrid=False, range=[liq_y_min, liq_y_max])), row=1, col=1, secondary_y=True)
 fig_candle.update_yaxes(ax(dict(title_text="거래량", tickformat=".2s", fixedrange=True)), row=2, col=1)
 
-# ── 줌 컨트롤 ──
-zoom_cols = st.columns([1, 1, 1, 4])
-with zoom_cols[0]:
-    zoom_in = st.button("🔍＋ 확대", use_container_width=True, key="zoom_in")
-with zoom_cols[1]:
-    zoom_out = st.button("🔍－ 축소", use_container_width=True, key="zoom_out")
-with zoom_cols[2]:
-    zoom_reset = st.button("↩ 전체보기", use_container_width=True, key="zoom_reset")
-
-# 줌 레벨 관리 (session_state)
-if "zoom_level" not in st.session_state:
-    st.session_state["zoom_level"] = 0
-
-if zoom_in:
-    st.session_state["zoom_level"] = min(st.session_state["zoom_level"] + 1, 5)
-if zoom_out:
-    st.session_state["zoom_level"] = max(st.session_state["zoom_level"] - 1, -2)
-if zoom_reset:
-    st.session_state["zoom_level"] = 0
-
-zl = st.session_state["zoom_level"]
-if zl != 0 and len(ohlc_chart) > 10:
-    total_bars = len(ohlc_chart)
-    # 줌 인: 최근 N% 구간만 표시, 줌 아웃: 더 넓게
-    ratio = max(0.05, 1.0 - zl * 0.15)  # zl=5→5%, zl=-2→130%
-    show_bars = max(10, int(total_bars * ratio))
-    x_start = ohlc_chart.index[-min(show_bars, total_bars)]
-    x_end = ohlc_chart.index[-1]
-    fig_candle.update_xaxes(range=[x_start, x_end], row=1, col=1)
-    fig_candle.update_xaxes(range=[x_start, x_end], row=2, col=1)
-
 st.plotly_chart(fig_candle, use_container_width=True,
                 config={"scrollZoom": True,
                         "displayModeBar": True,
                         "modeBarButtonsToRemove": [
                             "select2d", "lasso2d", "autoScale2d",
                             "hoverClosestCartesian", "hoverCompareCartesian",
-                            "toggleSpikelines", "toImage",
+                            "toggleSpikelines",
                         ],
-                        "modeBarButtonsToAdd": [],
                         "displaylogo": False,
                         "responsive": True})
 
@@ -840,15 +893,23 @@ if len(ohlc_chart) >= 2:
     chg = (last["Close"] - prev["Close"]) / prev["Close"] * 100
     chg_cls = "up" if chg >= 0 else "down"
     chg_arrow = "▲" if chg >= 0 else "▼"
-    st.markdown(f"""<div class="guide-box">
-        🕯️ <strong>최근 {tf}:</strong>
-        시가 <strong>{last['Open']:,.0f}</strong> · 고가 <strong>{last['High']:,.0f}</strong> ·
-        저가 <strong>{last['Low']:,.0f}</strong> · 종가 <strong>{last['Close']:,.0f}</strong>
-        &nbsp;(<span style="color:var(--accent-{'green' if chg>=0 else 'red'})">{chg_arrow} {chg:+.2f}%</span>)
-        &nbsp;|&nbsp; 이평선: <span style="color:#f59e0b">MA20</span> ·
-        <span style="color:#3b82f6">MA60</span> · <span style="color:#8b5cf6">MA120</span>
-        &nbsp;|&nbsp; <span style="color:rgba(59,130,246,0.6)">파란 영역</span> = {CC['liq_label']} (우측 축)
-    </div>""", unsafe_allow_html=True)
+    chg_color = "green" if chg >= 0 else "red"
+    st.markdown(
+        f'<div class="guide-box">'
+        f'🕯️ <strong>최근 {tf}:</strong> '
+        f'시 <strong>{last["Open"]:,.0f}</strong> · '
+        f'고 <strong>{last["High"]:,.0f}</strong> · '
+        f'저 <strong>{last["Low"]:,.0f}</strong> · '
+        f'종 <strong>{last["Close"]:,.0f}</strong> '
+        f'<span style="color:var(--accent-{chg_color})">{chg_arrow} {chg:+.2f}%</span>'
+        f'<br>'
+        f'이평선: <span style="color:#f59e0b">MA20</span> · '
+        f'<span style="color:#3b82f6">MA60</span> · '
+        f'<span style="color:#8b5cf6">MA120</span> · '
+        f'<span style="color:rgba(59,130,246,0.6)">파란 영역</span> = {CC["liq_label"]}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 이벤트 타임라인
@@ -881,9 +942,10 @@ st.markdown(tl_html + "</div>", unsafe_allow_html=True)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 푸터
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-st.markdown(f"""
-<div class="app-footer">
-    데이터: {CC['data_src']} &nbsp;|&nbsp; 마지막 업데이트: {df.index.max().strftime('%Y-%m-%d')}
-    &nbsp;|&nbsp; 자동 갱신: 하루 4회 (PST·KST 09:00/18:00) &nbsp;|&nbsp; 본 페이지는 투자 조언이 아닙니다
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f'<div class="app-footer">'
+    f'데이터: {CC["data_src"]} · 업데이트: {df.index.max().strftime("%Y-%m-%d")}'
+    f'<br>자동 갱신 4회/일 (PST·KST 09/18시) · 본 페이지는 투자 조언이 아닙니다'
+    f'</div>',
+    unsafe_allow_html=True,
+)
