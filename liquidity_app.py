@@ -17,8 +17,32 @@ st.set_page_config(
     layout="wide"
 )
 
+try:
+    st.logo("icon.png")
+except:
+    pass
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 스타일 (네이버 증권 스타일)
+# 자동 새로고침
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def get_next_refresh():
+    utc_now = datetime.now(ZoneInfo("UTC"))
+    utc_hours = [0, 2, 9, 17]
+    targets = []
+    for h in utc_hours:
+        t = utc_now.replace(hour=h, minute=0, second=0, microsecond=0)
+        if t <= utc_now:
+            t += timedelta(days=1)
+        targets.append(t)
+    next_t = min(targets)
+    secs = max(int((next_t - utc_now).total_seconds()), 60)
+    return next_t, secs
+
+NEXT_REFRESH_TIME, REFRESH_SECS = get_next_refresh()
+st.markdown(f'<meta http-equiv="refresh" content="{min(REFRESH_SECS, 3600)}">', unsafe_allow_html=True)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CSS (네이버 증권 스타일 + KPI/리포트 스타일 복구)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <style>
@@ -32,6 +56,8 @@ st.markdown("""
     --border: #ececec;
     --up-color: #f73646;
     --down-color: #335eff;
+    --card-bg: #ffffff;
+    --accent-blue: #3b82f6; --accent-red: #ef4444; --accent-green: #10b981; --accent-purple: #8b5cf6;
 }
 
 html, body, [data-testid="stAppViewContainer"] {
@@ -46,11 +72,28 @@ html, body, [data-testid="stAppViewContainer"] {
     max-width: 100%;
 }
 
-/* 헤더 */
+/* ── KPI 카드 (복구됨) ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+.kpi {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1rem; position: relative; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.kpi::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; }
+.kpi.blue::before { background: var(--accent-blue); }
+.kpi.red::before { background: var(--accent-red); }
+.kpi.green::before { background: var(--accent-green); }
+.kpi.purple::before { background: var(--accent-purple); }
+.kpi-label { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem; }
+.kpi-value { font-family: 'Roboto Mono', monospace; font-size: 1.3rem; font-weight: 700; color: var(--text-primary); }
+.kpi-delta { font-size: 0.8rem; font-weight: 500; margin-top: 0.2rem; }
+.kpi-delta.up { color: var(--accent-green); }
+.kpi-delta.down { color: var(--accent-red); }
+
+/* ── 헤더 (네이버 스타일) ── */
 .stock-header-container { padding-bottom: 15px; border-bottom: 1px solid var(--border); margin-bottom: 15px; }
 .stock-title-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
 .stock-name { font-size: 1.5rem; font-weight: 800; color: #111; }
-.stock-ticker { font-size: 0.95rem; color: var(--text-secondary); }
+.stock-ticker { font-size: 0.95rem; color: var(--text-secondary); font-weight: 500; }
 .stock-price-row { display: flex; align-items: flex-end; gap: 12px; }
 .stock-price { font-family: 'Roboto Mono', sans-serif; font-size: 2.4rem; font-weight: 700; line-height: 1; }
 .stock-change { font-size: 1.1rem; font-weight: 600; padding-bottom: 4px; }
@@ -58,14 +101,53 @@ html, body, [data-testid="stAppViewContainer"] {
 .c-down { color: var(--down-color); }
 .c-flat { color: #333; }
 
-/* KPI 바 */
-.summary-bar { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 5px; margin-bottom: 10px; font-size: 0.85rem; }
-.summary-item { white-space: nowrap; display: flex; align-items: center; gap: 5px; background: #f8f9fa; padding: 6px 12px; border-radius: 18px; border: 1px solid #eee; }
-.summary-label { color: #888; font-weight: 500; }
-.summary-value { font-weight: 700; color: #333; }
+/* ── 리포트 박스 (Daily Brief 복구) ── */
+.report-box {
+    background: linear-gradient(135deg, #f8f9fa, #ffffff); border: 1px solid #e1e4e8;
+    border-radius: 12px; padding: 1.5rem; margin-top: 1.5rem; margin-bottom: 1.5rem;
+}
+.report-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+.report-badge {
+    background: var(--accent-blue); color: white; font-size: 0.7rem; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px; text-transform: uppercase;
+}
+.report-date { font-size: 0.85rem; color: var(--text-secondary); }
+.report-title { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
+.report-body { font-size: 0.95rem; color: #444; line-height: 1.7; }
+.report-body strong { color: #111; font-weight: 700; }
+.report-body .hl { background: rgba(59,130,246,0.1); padding: 0 4px; border-radius: 4px; color: var(--accent-blue); font-weight: 600; }
+.report-divider { border: none; border-top: 1px dashed #d1d5db; margin: 12px 0; }
+.report-signal { display: inline-flex; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; margin-top: 0.8rem; }
+.signal-bullish { background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); }
+.signal-neutral { background: rgba(245,158,11,0.1); color: var(--accent-amber); border: 1px solid rgba(245,158,11,0.2); }
+.signal-bearish { background: rgba(239,68,68,0.1); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.2); }
 
-/* 차트 */
-[data-testid="stPlotlyChart"] { width: 100% !important; }
+/* ── 타임라인 ── */
+.timeline { display: flex; flex-direction: column; gap: 0; border-top: 1px solid #eee; margin-top: 10px; }
+.tl-item { display: flex; gap: 15px; padding: 12px 0; border-bottom: 1px solid #f5f5f5; font-size: 0.9rem; }
+.tl-date { color: #888; font-size: 0.8rem; min-width: 80px; font-family: 'Roboto Mono', monospace; }
+.tl-icon { font-size: 1.1rem; }
+.tl-content { flex: 1; }
+.tl-title { font-weight: 600; color: #333; margin-bottom: 2px; }
+.tl-desc { font-size: 0.85rem; color: #666; }
+.tl-dir { font-size: 0.75rem; font-weight: 700; margin-left: 5px; padding: 1px 5px; border-radius: 4px; }
+.tl-dir.up { background: rgba(247,54,70,0.1); color: var(--up-color); }
+.tl-dir.down { background: rgba(51,94,255,0.1); color: var(--down-color); }
+
+/* ── 컨트롤 및 차트 ── */
+[data-testid="stHorizontalBlock"] { gap: 0.5rem !important; margin-bottom: 10px; }
+.stSelectbox label, .stRadio label { font-size: 0.75rem !important; color: #666 !important; }
+.stSelectbox > div > div { background-color: #f9f9f9 !important; border: 1px solid #ddd !important; border-radius: 6px !important; }
+[data-testid="stPlotlyChart"] { width: 100% !important; margin-top: -10px; }
+.modebar { opacity: 0.8 !important; top: 5px !important; right: 5px !important; background: rgba(255,255,255,0.9) !important; border-radius: 4px; }
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .stock-price { font-size: 2rem; }
+    .stock-name { font-size: 1.3rem; }
+    .report-box { padding: 1rem; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -75,12 +157,14 @@ html, body, [data-testid="stAppViewContainer"] {
 MARKET_PIVOTS = [
     ("2024-11-05", "트럼프 2기 당선", "규제완화 기대", "🗳️", "up"),
     ("2025-01-27", "DeepSeek 쇼크", "AI 수익성 우려", "🤖", "down"),
-    # ... (기존 이벤트 유지)
+    ("2025-04-02", "Liberation Day 관세", "관세 공포", "🚨", "down"),
+    ("2025-04-09", "관세 90일 유예", "무역전쟁 완화", "🕊️", "up"),
+    ("2025-12-11", "RMP 국채매입 재개", "유동성 확장", "💰", "up"),
 ]
 
 COUNTRY_CONFIG = {
     "🇺🇸 미국": {
-        "indices": {"NASDAQ": "^IXIC", "S&P 500": "^GSPC"},
+        "indices": {"NASDAQ": "^IXIC", "S&P 500": "^GSPC", "다우존스": "^DJI"},
         "default_idx": 0,
         "fred_liq": "BOGMBASE",
         "fred_rec": "USREC",
@@ -110,96 +194,114 @@ COUNTRY_CONFIG = {
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_data(ticker, fred_liq, fred_rec, liq_divisor):
     end_dt = datetime.now()
-    fetch_start = end_dt - timedelta(days=365 * 12) # 넉넉하게
+    fetch_start = end_dt - timedelta(days=365 * 14)
 
-    # 1. FRED (유동성)
+    # 1. FRED
     try:
         fred_codes = [fred_liq]
         if fred_rec: fred_codes.append(fred_rec)
         fred_df = web.DataReader(fred_codes, "fred", fetch_start, end_dt).ffill()
-        
         if fred_rec:
             fred_df.columns = ["Liquidity", "Recession"]
         else:
             fred_df.columns = ["Liquidity"]
             fred_df["Recession"] = 0
-            
         fred_df["Liquidity"] = fred_df["Liquidity"] / liq_divisor
-    except Exception:
-        # FRED 실패 시 빈 데이터프레임 생성 (차트는 그려지도록)
-        fred_df = pd.DataFrame(columns=["Liquidity", "Recession"])
+    except Exception as e:
+        return None, f"FRED Error: {e}"
 
-    # 2. Yahoo Finance (주가) - 핵심 수정 부분
+    # 2. Yahoo Finance
     try:
         yf_data = yf.download(ticker, start=fetch_start, end=end_dt, progress=False)
+        if yf_data.empty: return None, "No data found"
         
-        if yf_data.empty:
-            return None, "주가 데이터를 가져올 수 없습니다."
-
-        # MultiIndex 컬럼 평탄화 (yfinance 버전 호환성)
         if isinstance(yf_data.columns, pd.MultiIndex):
-            # level 0가 속성(Close 등), level 1이 Ticker인 경우
             if 'Close' in yf_data.columns.get_level_values(0):
                  yf_data.columns = yf_data.columns.get_level_values(0)
         
-        # 필요한 컬럼만 선택
         ohlc = yf_data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-        # 결측치 제거
-        ohlc = ohlc.dropna()
-        
-        # SP500 컬럼 생성 (분석용)
-        idx_close = ohlc[['Close']].rename(columns={'Close': 'SP500'})
-
+        idx_close = yf_data[['Close']].rename(columns={'Close': 'SP500'})
     except Exception as e:
-        return None, f"주가 데이터 오류: {str(e)}"
+        return None, f"YFinance Error: {e}"
 
-    # 3. 데이터 병합
+    # 3. Merge & Calc
     try:
-        # 인덱스 통일 (날짜형)
-        fred_df.index = pd.to_datetime(fred_df.index)
-        idx_close.index = pd.to_datetime(idx_close.index)
-        
-        # 병합
         df = pd.concat([fred_df, idx_close], axis=1).ffill()
-        df = df.dropna(subset=['SP500']) # 주가 없는 날은 제외
-
-        # 파생변수
+        df = df.dropna(subset=['SP500'])
+        
         df["Liq_MA"] = df["Liquidity"].rolling(10).mean()
         df["SP_MA"] = df["SP500"].rolling(10).mean()
         df["Liq_YoY"] = df["Liquidity"].pct_change(252) * 100
         df["SP_YoY"] = df["SP500"].pct_change(252) * 100
         df["Corr_90d"] = df["Liquidity"].rolling(90).corr(df["SP500"])
-        
+
+        cut = end_dt - timedelta(days=365 * 12)
+        df = df[df.index >= pd.to_datetime(cut)]
+        ohlc = ohlc[ohlc.index >= pd.to_datetime(cut)]
         return (df, ohlc), None
-
     except Exception as e:
-        return None, f"데이터 병합 오류: {str(e)}"
+        return None, f"Merge Error: {e}"
+
+def detect_auto_events(ohlc_df, base_events, threshold=0.05):
+    if ohlc_df is None or len(ohlc_df) < 2: return []
+    daily_ret = ohlc_df["Close"].pct_change()
+    existing = {pd.to_datetime(d).date() for d, *_ in base_events}
+    auto = []
+    for dt, ret in daily_ret.items():
+        if pd.isna(ret) or dt.date() in existing: continue
+        if abs(ret) >= threshold:
+            kind, emoji = ("급등", "🔥") if ret > 0 else ("급락", "⚡")
+            auto.append((dt.strftime("%Y-%m-%d"), f"{kind} {ret*100:.1f}%", f"하루 {kind}", emoji, "up" if ret>0 else "down"))
+            existing.add(dt.date())
+    return auto
+
+def add_recession(fig, dff, has_rows=False):
+    if "Recession" not in dff.columns: return
+    rec_idx = dff[dff["Recession"] == 1].index
+    if rec_idx.empty: return
+    groups, start = [], rec_idx[0]
+    for i in range(1, len(rec_idx)):
+        if (rec_idx[i] - rec_idx[i - 1]).days > 5:
+            groups.append((start, rec_idx[i - 1])); start = rec_idx[i]
+    groups.append((start, rec_idx[-1]))
+    for s, e in groups:
+        kw = dict(row="all", col=1) if has_rows else {}
+        fig.add_vrect(x0=s, x1=e, fillcolor="rgba(239,68,68,0.04)", layer="below", line_width=0, **kw)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 메인 로직
+# 레이아웃 구성
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ctrl1, ctrl2, ctrl3, ctrl4, ctrl5 = st.columns([1, 1, 1, 1, 1])
-with ctrl1:
-    country = st.selectbox("🌍 국가", list(COUNTRY_CONFIG.keys()), index=0)
-CC = COUNTRY_CONFIG[country]
-IDX_OPTIONS = CC["indices"]
+# 컨테이너 정의
+header_container = st.container()
+kpi_container = st.container()
+st.write("") # 간격
+ctrl_container = st.container()
+chart_container = st.container()
+brief_container = st.container()
+timeline_container = st.container()
 
-if st.session_state.get("_prev_country") != country:
-    st.session_state["_prev_country"] = country
-    st.session_state["idx_select"] = list(IDX_OPTIONS.keys())[0]
-
-with ctrl2:
-    idx_name = st.selectbox("📈 지수", list(IDX_OPTIONS.keys()), key="idx_select")
+# [컨트롤 바]
+with ctrl_container:
+    c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
+    with c1: country = st.selectbox("🌍 국가", list(COUNTRY_CONFIG.keys()), index=0)
+    CC = COUNTRY_CONFIG[country]
+    IDX_OPTIONS = CC["indices"]
+    
+    if st.session_state.get("_prev_country") != country:
+        st.session_state["_prev_country"] = country
+        st.session_state["idx_select"] = list(IDX_OPTIONS.keys())[CC["default_idx"]]
+        
+    with c2: idx_name = st.selectbox("📈 지수", list(IDX_OPTIONS.keys()), key="idx_select")
     idx_ticker = IDX_OPTIONS[idx_name]
-with ctrl3:
-    period = st.selectbox("📅 기간", ["1년", "3년", "5년", "10년", "전체"], index=1)
-with ctrl4:
-    tf = st.selectbox("🕯️ 봉", ["일봉", "주봉", "월봉"], index=2)
-with ctrl5:
-    show_events = st.toggle("📌 이벤트", value=True)
+    with c3: period = st.selectbox("📅 기간", ["3년", "5년", "7년", "10년", "전체"], index=3)
+    with c4: tf = st.selectbox("🕯️ 봉", ["일봉", "주봉", "월봉"], index=2)
+    with c5: show_events = st.toggle("📌 이벤트", value=True)
 
-# 데이터 로드
-with st.spinner("차트 구성중..."):
+# 데이터 로딩
+period_map = {"3년": 3, "5년": 5, "7년": 7, "10년": 10, "전체": 12}
+cutoff = datetime.now() - timedelta(days=365 * period_map[period])
+
+with st.spinner("데이터 로딩중..."):
     result, err = load_data(idx_ticker, CC["fred_liq"], CC["fred_rec"], CC["liq_divisor"])
 
 if result is None:
@@ -208,170 +310,246 @@ if result is None:
 
 df, ohlc_raw = result
 
-# 기간 필터링
-period_days = {"1년": 365, "3년": 365*3, "5년": 365*5, "10년": 365*10, "전체": 365*30}
-start_date = datetime.now() - timedelta(days=period_days.get(period, 365*3))
+# 데이터 필터링
+dff = df[df.index >= pd.to_datetime(cutoff)].copy()
+ohlc_filtered = ohlc_raw[ohlc_raw.index >= pd.to_datetime(cutoff)].copy()
 
-df = df[df.index >= start_date]
-ohlc_raw = ohlc_raw[ohlc_raw.index >= start_date]
-
-if df.empty or ohlc_raw.empty:
-    st.error("해당 기간의 데이터가 없습니다.")
+if ohlc_filtered.empty:
+    st.warning("선택한 기간의 데이터가 없습니다.")
     st.stop()
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 헤더 정보
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# [헤더]
 latest = df.iloc[-1]
 prev = df.iloc[-2]
-price = latest["SP500"]
-diff = price - prev["SP500"]
+cur_price = latest["SP500"]
+diff = cur_price - prev["SP500"]
 pct = (diff / prev["SP500"]) * 100
 cls = "c-up" if diff > 0 else "c-down" if diff < 0 else "c-flat"
 arrow = "▲" if diff > 0 else "▼" if diff < 0 else "-"
 
-st.markdown(f"""
-<div class="stock-header-container">
-    <div class="stock-title-row">
-        <span class="stock-name">{idx_name}</span>
-        <span class="stock-ticker">{idx_ticker}</span>
+with header_container:
+    st.markdown(f"""
+    <div class="stock-header-container">
+        <div class="stock-title-row">
+            <span class="stock-name">{idx_name}</span>
+            <span class="stock-ticker">{idx_ticker}</span>
+        </div>
+        <div class="stock-price-row {cls}">
+            <span class="stock-price">{cur_price:,.2f}</span>
+            <span class="stock-change">{arrow} {abs(diff):,.2f} ({pct:+.2f}%)</span>
+        </div>
     </div>
-    <div class="stock-price-row {cls}">
-        <span class="stock-price">{price:,.2f}</span>
-        <span class="stock-change">{arrow} {abs(diff):,.2f} ({pct:+.2f}%)</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 차트 그리기
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# [KPI 카드]
+liq_val = latest["Liquidity"]
+liq_yoy = latest["Liq_YoY"]
+sp_yoy = latest["SP_YoY"]
+corr_val = latest["Corr_90d"]
+
+def delta_html(val):
+    c = "up" if val >= 0 else "down"
+    return f'<div class="kpi-delta {c}">{val:+.1f}% YoY</div>'
+
+with kpi_container:
+    st.markdown(f"""
+    <div class="kpi-grid">
+        <div class="kpi blue">
+            <div class="kpi-label">💵 {CC['liq_label']}</div>
+            <div class="kpi-value">{CC['liq_prefix']}{liq_val:,.0f}{CC['liq_suffix']}</div>
+            {delta_html(liq_yoy)}
+        </div>
+        <div class="kpi red">
+            <div class="kpi-label">📈 {idx_name}</div>
+            <div class="kpi-value">{cur_price:,.0f}</div>
+            {delta_html(sp_yoy)}
+        </div>
+        <div class="kpi green">
+            <div class="kpi-label">🔗 90일 상관계수</div>
+            <div class="kpi-value">{corr_val:.2f}</div>
+            <div class="kpi-delta {'up' if corr_val>0.5 else 'down'}">{'강한 동행' if corr_val>0.5 else '약한 상관'}</div>
+        </div>
+        <div class="kpi purple">
+            <div class="kpi-label">📅 데이터 기간</div>
+            <div class="kpi-value" style="font-size:1.1rem">{dff.index.min().strftime('%Y.%m')}~</div>
+            <div class="kpi-delta up">{len(dff):,}일</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# [차트]
 # 리샘플링
 def resample(data, rule):
     return data.resample(rule).agg({
         'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'
     }).dropna()
 
-if tf == "주봉": chart_data = resample(ohlc_raw, "W")
-elif tf == "월봉": chart_data = resample(ohlc_raw, "ME")
-else: chart_data = ohlc_raw
+if tf == "주봉": chart_data = resample(ohlc_filtered, "W"); dff_chart = dff.resample("W").last().dropna()
+elif tf == "월봉": chart_data = resample(ohlc_filtered, "ME"); dff_chart = dff.resample("ME").last().dropna()
+else: chart_data = ohlc_filtered.copy(); dff_chart = dff.copy()
 
-# 차트 생성
-fig = make_subplots(
-    rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03,
-    row_heights=[0.8, 0.2],
-    specs=[[{"secondary_y": True}], [{"secondary_y": False}]]
-)
-
-# 1. 캔들
-fig.add_trace(go.Candlestick(
-    x=chart_data.index,
-    open=chart_data['Open'], high=chart_data['High'],
-    low=chart_data['Low'], close=chart_data['Close'],
-    increasing_line_color='#f73646', increasing_fillcolor='#f73646',
-    decreasing_line_color='#335eff', decreasing_fillcolor='#335eff',
-    name='주가'
-), row=1, col=1)
-
-# 2. 이평선
-for ma, color in [(5, '#999'), (20, '#f5a623'), (60, '#33bb55'), (120, '#aa55ff')]:
-    ma_series = chart_data['Close'].rolling(ma).mean()
+with chart_container:
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02,
+        row_heights=[0.8, 0.2],
+        specs=[[{"secondary_y": True}], [{"secondary_y": False}]]
+    )
+    
+    # 1. 유동성 (배경)
     fig.add_trace(go.Scatter(
-        x=chart_data.index, y=ma_series, 
-        mode='lines', line=dict(color=color, width=1), 
-        name=f'{ma}일'
-    ), row=1, col=1)
-
-# 3. 거래량
-colors = ['#f73646' if c >= o else '#335eff' for o, c in zip(chart_data['Open'], chart_data['Close'])]
-fig.add_trace(go.Bar(
-    x=chart_data.index, y=chart_data['Volume'],
-    marker_color=colors, showlegend=False, name='거래량'
-), row=2, col=1)
-
-# 4. 유동성 (보조축)
-if not df['Liquidity'].dropna().empty:
-    fig.add_trace(go.Scatter(
-        x=df.index, y=df['Liquidity'],
+        x=dff_chart.index, y=dff_chart["Liquidity"],
         name=CC['liq_label'],
-        line=dict(color='rgba(59,130,246,0.5)', width=1.5, dash='dot'),
-        fill='tozeroy', fillcolor='rgba(59,130,246,0.05)'
+        fill="tozeroy", fillcolor="rgba(59,130,246,0.05)",
+        line=dict(color="rgba(59,130,246,0.3)", width=1),
+        hoverinfo="skip"
     ), row=1, col=1, secondary_y=True)
 
-# 5. 이벤트
-if show_events:
-    for date_str, title, _, emoji, direction in CC["events"]:
-        dt = pd.to_datetime(date_str)
-        if dt >= chart_data.index.min() and dt <= chart_data.index.max():
-            fig.add_vline(x=dt, line_width=1, line_dash="dot", line_color="#ccc")
+    # 2. 캔들
+    fig.add_trace(go.Candlestick(
+        x=chart_data.index,
+        open=chart_data['Open'], high=chart_data['High'],
+        low=chart_data['Low'], close=chart_data['Close'],
+        increasing_line_color='#f73646', increasing_fillcolor='#f73646',
+        decreasing_line_color='#335eff', decreasing_fillcolor='#335eff',
+        name='주가'
+    ), row=1, col=1)
+
+    # 3. 이평선
+    for ma, color in [(5, '#999'), (20, '#f5a623'), (60, '#33bb55'), (120, '#aa55ff')]:
+        ma_s = chart_data['Close'].rolling(ma).mean()
+        fig.add_trace(go.Scatter(
+            x=chart_data.index, y=ma_s, 
+            mode='lines', line=dict(color=color, width=1), 
+            name=f'{ma}선'
+        ), row=1, col=1)
+
+    # 4. 거래량
+    colors = ['#f73646' if c >= o else '#335eff' for o, c in zip(chart_data['Open'], chart_data['Close'])]
+    fig.add_trace(go.Bar(
+        x=chart_data.index, y=chart_data['Volume'],
+        marker_color=colors, showlegend=False, name='거래량'
+    ), row=2, col=1)
+
+    # 5. 이벤트
+    if show_events:
+        auto_events = detect_auto_events(ohlc_filtered, CC["events"])
+        ALL_EVENTS = sorted(CC["events"] + auto_events, key=lambda x: x[0])
+        prev_dt = None
+        min_gap = {"일봉": 15, "주봉": 45, "월봉": 120}.get(tf, 20)
+
+        for date_str, title, _, emoji, direction in ALL_EVENTS:
+            dt = pd.to_datetime(date_str)
+            if dt < chart_data.index.min() or dt > chart_data.index.max(): continue
+            if prev_dt and (dt - prev_dt).days < min_gap: continue
+            prev_dt = dt
+            
+            fig.add_vline(x=dt, line_width=1, line_dash="dot", line_color="rgba(100,100,100,0.3)", row="all", col=1)
+            clr = "#d32f2f" if direction == "up" else "#1976d2"
             fig.add_annotation(
-                x=dt, y=1.02, yref="paper", text=f"{emoji} {title}",
-                showarrow=False, font=dict(size=11, color="#555"), textangle=-30
+                x=dt, y=1.05, yref="paper", text=f"{emoji} {title}",
+                showarrow=False, font=dict(size=11, color=clr),
+                textangle=-30, xanchor="left", yanchor="bottom", row=1, col=1
             )
+            
+    # 6. 리세션
+    add_recession(fig, dff, True)
 
-# 6. 리세션
-if "Recession" in df.columns:
-    rec_dates = df[df["Recession"] == 1].index
-    # 간단하게 구현: 리세션 기간이 있으면 표시
-    # (복잡한 로직 생략하고 데이터 있으면 전체적으로 표시되지 않게 주의)
-    pass 
+    # 레이아웃
+    x_min, x_max = chart_data.index.min(), chart_data.index.max() + timedelta(days=1)
+    
+    fig.update_layout(
+        plot_bgcolor='white', paper_bgcolor='white',
+        margin=dict(t=60, b=20, l=10, r=50),
+        height=600,
+        hovermode='x unified',
+        dragmode='pan',
+        showlegend=True,
+        legend=dict(
+            orientation="h", yanchor="top", y=0.99, xanchor="left", x=0.01,
+            bgcolor="rgba(255,255,255,0.6)", bordercolor="#eee", borderwidth=1, font=dict(size=10)
+        ),
+        xaxis=dict(
+            rangebreaks=[dict(bounds=["sat", "mon"])] if tf == "일봉" else [],
+            minallowed=x_min, maxallowed=x_max
+        )
+    )
 
-# 레이아웃 설정
-fig.update_layout(
-    plot_bgcolor='white', paper_bgcolor='white',
-    margin=dict(t=40, b=20, l=10, r=50),
-    height=600,
-    hovermode='x unified',
-    dragmode='pan',
-    showlegend=True,
-    legend=dict(orientation="h", y=1, x=0, bgcolor='rgba(255,255,255,0.5)'),
-    xaxis_rangeslider_visible=False
-)
+    # 축 설정
+    fig.update_xaxes(gridcolor='#f5f5f5', row=1, col=1)
+    fig.update_xaxes(gridcolor='#f5f5f5', row=2, col=1)
+    
+    # Y축 (오른쪽, 고정)
+    fig.update_yaxes(
+        side='right', gridcolor='#f5f5f5',
+        tickfont=dict(color="#333", size=11),
+        ticklabelposition="outside", zeroline=False,
+        fixedrange=True, row=1, col=1, secondary_y=False
+    )
+    fig.update_yaxes(visible=False, fixedrange=True, row=1, col=1, secondary_y=True)
+    fig.update_yaxes(side='right', showgrid=False, tickformat='.2s', fixedrange=True, row=2, col=1)
 
-# 축 설정 (네이버 스타일: Y축 오른쪽)
-fig.update_xaxes(gridcolor='#f0f0f0', showgrid=True, row=1, col=1)
-fig.update_xaxes(gridcolor='#f0f0f0', showgrid=True, row=2, col=1)
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True, 'scrollZoom': True})
+    
+    # 모바일 터치 스크립트
+    st.markdown("""
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var plot = document.querySelector('.js-plotly-plot');
+        if(plot) { plot.style.touchAction = 'none'; }
+    });
+    </script>
+    """, unsafe_allow_html=True)
 
-# 일봉일 때만 휴장일 제거
-if tf == "일봉":
-    fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])])
+# [Daily Brief]
+with brief_container:
+    liq_3m_chg = ((df["Liquidity"].iloc[-1] - df["Liquidity"].iloc[-63])/df["Liquidity"].iloc[-63]*100) if len(df)>63 else 0
+    sp_1m_chg = ((df["SP500"].iloc[-1] - df["SP500"].iloc[-21])/df["SP500"].iloc[-21]*100) if len(df)>21 else 0
+    
+    if corr_val > 0.5 and liq_3m_chg > 0:
+        sig_cls, sig_txt = "signal-bullish", "🟢 유동성 확장 + 강한 상관 → 주가 상승 지지"
+    elif corr_val < 0 or liq_3m_chg < -1:
+        sig_cls, sig_txt = "signal-bearish", "🔴 유동성 수축 또는 상관 이탈 → 경계 필요"
+    else:
+        sig_cls, sig_txt = "signal-neutral", "🟡 혼합 시그널 → 방향성 주시"
 
-# Y축 설정
-fig.update_yaxes(side='right', gridcolor='#f0f0f0', showgrid=True, row=1, col=1, secondary_y=False)
-fig.update_yaxes(visible=False, row=1, col=1, secondary_y=True) # 유동성 축 숨김
-fig.update_yaxes(side='right', showgrid=False, tickformat='.2s', row=2, col=1)
+    if country == "🇺🇸 미국":
+        b_pol = "연준은 금리를 유지하며 유동성을 조절하고 있습니다."
+        b_liq = f"본원통화는 3개월간 <span class='hl'>{liq_3m_chg:+.1f}%</span> 변동했습니다."
+        b_mkt = f"{idx_name}은 1개월간 <span class='hl'>{sp_1m_chg:+.1f}%</span> 움직였습니다."
+    else:
+        b_pol = "한국은행은 미 연준의 정책과 환율을 주시하고 있습니다."
+        b_liq = f"글로벌 유동성(Fed)은 <span class='hl'>{liq_3m_chg:+.1f}%</span> 변동했습니다."
+        b_mkt = f"{idx_name}은 대외 변수에 민감하며 <span class='hl'>{sp_1m_chg:+.1f}%</span> 등락했습니다."
 
-# Y축 고정 (줌/팬 방지)
-fig.update_yaxes(fixedrange=True)
+    b_corr = f"상관계수 <span class='hl'>{corr_val:.2f}</span>. " + \
+             ("유동성과 주가가 강하게 동행합니다." if corr_val > 0.5 else "동행성이 약화되었습니다.")
 
-st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': True})
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 하단 Brief
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-st.markdown("---")
-
-liq_3m_chg = df["Liq_YoY"].iloc[-1] if not df.empty else 0
-sp_1m_chg = df["SP500"].pct_change(20).iloc[-1] * 100 if not df.empty else 0
-sp_yoy = df["SP_YoY"].iloc[-1] if not df.empty else 0
-
-st.markdown(f"""
-<div class="report-box">
-    <div class="report-header">
-        <span class="report-badge">Daily Brief</span>
-        <span class="report-date">{datetime.now().strftime("%Y-%m-%d")}</span>
+    st.markdown(f"""
+    <div class="report-box">
+        <div class="report-header">
+            <span class="report-badge">Daily Brief</span>
+            <span class="report-date">{datetime.now().strftime("%Y-%m-%d")}</span>
+        </div>
+        <div class="report-title">📋 오늘의 시장 요약</div>
+        <div class="report-body">
+            {b_pol}<br>{b_liq}<br>{b_mkt}
+            <hr class="report-divider">
+            {b_corr}
+        </div>
+        <div class="report-signal {sig_cls}">{sig_txt}</div>
     </div>
-    <div class="report-body">
-        <strong>{country} 시장 요약</strong><br>
-        • <strong>{CC['liq_label']}:</strong> 현재 수치는 전년 대비 <span class="hl">{liq_3m_chg:+.1f}%</span> 변동했습니다.<br>
-        • <strong>주가 지수:</strong> {idx_name}은 최근 1개월간 <span class="hl">{sp_1m_chg:+.1f}%</span>, 
-          전년 대비 <span class="hl">{sp_yoy:+.1f}%</span> 변동했습니다.<br>
-        • <strong>상관관계:</strong> 최근 90일간 유동성과 주가의 상관계수는 
-          <strong>{corr_val:.2f}</strong>로, 
-          {'강한 동행' if corr_val > 0.5 else '약한 상관' if corr_val > 0 else '역상관'} 관계를 보입니다.
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+
+# [타임라인]
+with timeline_container:
+    st.markdown('<div style="font-weight:700; font-size:1.1rem; margin-top:20px;">📅 주요 이벤트</div>', unsafe_allow_html=True)
+    html = '<div class="timeline">'
+    for d, t, desc, e, dr in reversed(ALL_EVENTS):
+        if pd.to_datetime(d) < dff.index.min(): continue
+        c = "up" if dr == "up" else "down"
+        html += f'<div class="tl-item"><div class="tl-date">{d}</div><div class="tl-content"><div class="tl-title">{e} {t} <span class="tl-dir {c}">●</span></div><div class="tl-desc">{desc}</div></div></div>'
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 # 푸터
-st.markdown('<div style="text-align:center; color:#999; font-size:0.8rem; margin-top:20px;">Data: FRED, Yahoo Finance</div>', unsafe_allow_html=True)
+st.markdown('<div class="app-footer" style="margin-top:30px; color:#999; font-size:0.8rem; text-align:center;">Data: FRED, Yahoo Finance · Not Investment Advice</div>', unsafe_allow_html=True)
