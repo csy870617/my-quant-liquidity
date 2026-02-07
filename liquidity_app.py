@@ -8,9 +8,19 @@ import numpy as np
 from zoneinfo import ZoneInfo
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 페이지 설정
+# 페이지 설정 (즐겨찾기 아이콘 적용)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-st.set_page_config(page_title="유동성 × 시장 분석기", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="유동성 × 시장 분석기", 
+    page_icon="icon.png",  # ★ 수정: 즐겨찾기 아이콘 설정
+    layout="wide"
+)
+
+# ★ 수정: 상단 로고 적용
+try:
+    st.logo("icon.png")
+except Exception:
+    pass  # 파일이 없거나 구버전 Streamlit일 경우 무시
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 자동 새로고침 (PST 09:00/18:00 + KST 09:00/18:00 = 하루 4회)
@@ -41,7 +51,7 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# CSS (모바일 핀치 줌 활성화 & 툴바 오버레이)
+# CSS (툴바 위치 상단 이동 및 여백 조정)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <style>
@@ -176,7 +186,6 @@ footer { display: none !important; }
 .js-plotly-plot, .plotly, .js-plotly-plot .plotly,
 [data-testid="stPlotlyChart"], [data-testid="stPlotlyChart"] > div,
 .stPlotlyChart, .stPlotlyChart > div > div > div {
-    /* ★ 모바일 터치 액션 제어 (중요: 차트 위에서 스크롤 방지) */
     touch-action: none !important;
     -webkit-touch-callout: none;
 }
