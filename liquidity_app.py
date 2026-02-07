@@ -162,12 +162,18 @@ html, body, [data-testid="stAppViewContainer"] {
 .tl-dir.down { color: var(--down-color); }
 
 /* ── Plotly 차트 ── */
-[data-testid="stPlotlyChart"] { width: 100% !important; margin-top: -10px; }
+[data-testid="stPlotlyChart"] { width: 100% !important; }
+
 /* 툴바 오버레이 */
 .modebar { 
     opacity: 0.8 !important; 
     top: 5px !important; right: 5px !important; bottom: auto !important; left: auto !important;
     background: rgba(255,255,255,0.9) !important; border-radius: 4px;
+}
+
+/* ★ 모바일 터치 최적화 (차트 위에서 스크롤 방지) */
+.js-plotly-plot, .js-plotly-plot .plotly, .js-plotly-plot .plotly div {
+    touch-action: none !important;
 }
 
 /* 모바일 최적화 */
@@ -330,7 +336,6 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
                 fred_df["Recession"] = 0
             fred_df["Liquidity"] = fred_df["Liquidity"] / liq_divisor
         except Exception as e:
-            st.error(f"FRED 데이터 로드 실패: {e}")
             return None, None
 
         # [B] 주가 데이터 (yfinance)
@@ -339,7 +344,6 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
             yf_data = yf.download(ticker, start=fetch_start, end=end_dt, progress=False)
             
             if yf_data.empty:
-                st.error("지수 데이터를 가져오지 못했습니다.")
                 return None, None
             
             if isinstance(yf_data.columns, pd.MultiIndex):
@@ -351,7 +355,6 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
                 ohlc = yf_data[['Open','High','Low','Close','Volume']].copy()
                 
         except Exception as e:
-            st.error(f"지수 데이터 로드 실패: {e}")
             return None, None
 
         # [C] 통합
@@ -371,7 +374,6 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
         return df.dropna(subset=["SP500"]), ohlc.dropna(subset=["Close"])
         
     except Exception as e:
-        st.error(f"시스템 오류: {str(e)}")
         return None, None
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -445,6 +447,7 @@ with st.spinner("데이터 로딩중..."):
     df, ohlc_raw = load_data(idx_ticker, CC["fred_liq"], CC["fred_rec"], CC["liq_divisor"])
 
 if df is None or df.empty:
+    st.warning("데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.")
     st.stop()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -506,6 +509,10 @@ st.markdown(f"""
 # 1. 데이터 필터링
 dff = df[df.index >= pd.to_datetime(cutoff)].copy()
 ohlc_filtered = ohlc_raw[ohlc_raw.index >= pd.to_datetime(cutoff)].copy()
+
+if ohlc_filtered.empty:
+    st.warning("선택한 기간의 데이터가 없습니다.")
+    st.stop()
 
 # 2. 리샘플링
 def resample_ohlc(ohlc_df, rule):
@@ -571,40 +578,28 @@ fig.add_trace(go.Bar(
     name="거래량"
 ), row=2, col=1)
 
-# (5) 이벤트 마커 (가독성 개선: 텍스트 추가 + 간격 유지)
+# (5) 이벤트 마커
 if show_events:
-    # 자동 감지 이벤트 추가
     auto_events = detect_auto_events(ohlc_filtered, CC["events"])
     ALL_EVENTS = sorted(CC["events"] + auto_events, key=lambda x: x[0])
     
     prev_dt = None
-    min_gap = {"일봉": 15, "주봉": 45, "월봉": 120}.get(tf, 20) # 간격 조정
+    min_gap = {"일봉": 15, "주봉": 45, "월봉": 120}.get(tf, 20)
     
     for date_str, title, _, emoji, direction in ALL_EVENTS:
         dt = pd.to_datetime(date_str)
-        
-        # 차트 범위 내인지 확인
-        if dt < ohlc_chart.index.min() or dt > ohlc_chart.index.max(): 
-            continue
-            
-        # 너무 가까운 이벤트 스킵
-        if prev_dt and (dt - prev_dt).days < min_gap: 
-            continue
+        if dt < ohlc_chart.index.min() or dt > ohlc_chart.index.max(): continue
+        if prev_dt and (dt - prev_dt).days < min_gap: continue
         
         prev_dt = dt
-        
-        # 수직선
         fig.add_vline(x=dt, line_width=1, line_dash="dot", line_color="rgba(100,100,100,0.3)", row="all", col=1)
-        
-        # 텍스트 마커 (이모지 + 제목)
         clr = "#d32f2f" if direction == "up" else "#1976d2"
-        # y=1.05로 캔들 위로 띄움, 텍스트 각도 조절
         fig.add_annotation(
             x=dt, y=1.05, yref="paper", 
             text=f"{emoji} {title}", 
             showarrow=False, 
             font=dict(size=11, color=clr),
-            textangle=-30, # 비스듬하게
+            textangle=-30,
             xanchor="left",
             yanchor="bottom",
             row=1, col=1
@@ -614,13 +609,13 @@ if show_events:
 add_recession(fig, dff, True)
 
 # (7) 레이아웃 설정
-# x축 좌우 제한 (데이터 범위만큼만)
+# x축 범위 제한 (데이터 존재하는 구간만)
 x_min = ohlc_chart.index.min()
 x_max = ohlc_chart.index.max() + timedelta(days=1)
 
 layout_opts = dict(
     plot_bgcolor="white", paper_bgcolor="white",
-    margin=dict(t=60, b=20, l=10, r=50), # 상단 여백(t=60) 확보
+    margin=dict(t=60, b=20, l=10, r=50), 
     height=600,
     hovermode="x unified",
     dragmode="pan",
@@ -632,11 +627,10 @@ layout_opts = dict(
     xaxis_rangeslider_visible=False,
 )
 
-# ★ 핵심: Y축 고정(fixedrange=True) + X축 제한
+# ★ 핵심: Y축 고정 + X축 제한 + 주말 제거
 fig.update_layout(**layout_opts)
 
-# 축 설정
-# X축: 좌우 제한 설정 (minallowed, maxallowed)
+# X축 (minallowed/maxallowed 적용)
 fig.update_xaxes(
     gridcolor="#f5f5f5", showgrid=True, 
     minallowed=x_min, maxallowed=x_max,
@@ -648,20 +642,19 @@ fig.update_xaxes(
     row=2, col=1
 )
 
-# 주말 Gap 제거 (일봉일 때)
 if tf == "일봉":
-    rangebreaks = [dict(bounds=["sat", "mon"])]
+    rangebreaks = [dict(bounds=["sat", "mon"])] 
     fig.update_xaxes(rangebreaks=rangebreaks, row=1, col=1)
     fig.update_xaxes(rangebreaks=rangebreaks, row=2, col=1)
 
-# Y축: 상하 이동 잠금 (fixedrange=True)
+# Y축 (고정)
 fig.update_yaxes(
     side="right", 
     gridcolor="#f5f5f5", showgrid=True,
     tickfont=dict(color="#333", size=11),
     ticklabelposition="outside", 
     zeroline=False,
-    fixedrange=True, # ★ Y축 고정
+    fixedrange=True, # ★ Y축 줌/팬 막기
     row=1, col=1, secondary_y=False
 )
 fig.update_yaxes(visible=False, fixedrange=True, row=1, col=1, secondary_y=True)
@@ -677,41 +670,26 @@ config = {
 
 st.plotly_chart(fig, use_container_width=True, config=config)
 
-# 모바일 핀치 줌 JS
-st.markdown("""
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var plot = document.querySelector('.js-plotly-plot');
-    if(plot) { plot.style.touchAction = 'none'; }
-});
-</script>
-""", unsafe_allow_html=True)
-
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 하단 Daily Brief (내용 복구)
+# 하단 Daily Brief
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("---") 
 
-# ★ 수정: 변수 계산 로직 복구
 liq_3m = df["Liquidity"].dropna()
 liq_3m_chg = ((liq_3m.iloc[-1] - liq_3m.iloc[-63]) / liq_3m.iloc[-63] * 100) if len(liq_3m) > 63 else 0
 sp_1m = df["SP500"].dropna()
 sp_1m_chg = ((sp_1m.iloc[-1] - sp_1m.iloc[-21]) / sp_1m.iloc[-21] * 100) if len(sp_1m) > 21 else 0
-# ★ 수정: 에러 발생했던 sp_yoy 변수 추가
 sp_yoy = latest["SP_YoY"] if pd.notna(latest.get("SP_YoY")) else 0
 
 today_str = datetime.now().strftime("%Y년 %m월 %d일")
 liq_display = f"{CC['liq_prefix']}{liq_val:,.0f}{CC['liq_suffix']}"
 
-# 풍부한 내용 복원
 if country == "🇺🇸 미국":
     brief_policy = (
         '<strong>▎연준 정책 현황</strong><br>'
         '연방기금금리 <span class="hl">3.50–3.75%</span> 유지 (1/28 FOMC). '
         'QT는 12/1에 공식 종료되었으며, 12/12부터 <strong>준비금 관리 매입(RMP)</strong>을 통해 국채 매입을 재개하여 '
-        '사실상 대차대조표 확장으로 전환했습니다. 파월 의장 임기 만료(5월)를 앞두고 '
-        '케빈 워시(Kevin Warsh)가 차기 의장으로 지명되었으며, '
-        '시장은 하반기 1~2회 추가 인하를 기대하고 있습니다.'
+        '사실상 대차대조표 확장으로 전환했습니다.'
     )
     brief_liq = (
         f'<strong>▎유동성 데이터</strong><br>'
@@ -730,8 +708,7 @@ else:
         '<strong>▎한국은행 통화정책 현황</strong><br>'
         '기준금리 <span class="hl">2.50%</span> (2025/6 기준). '
         '글로벌 긴축 완화 흐름에 맞춰 한은도 인하 기조를 유지하고 있으며, '
-        '원/달러 환율 안정과 가계부채 관리가 추가 인하의 핵심 변수입니다. '
-        '수출 회복과 반도체 업황 개선이 경기 지지 요인입니다.'
+        '원/달러 환율 안정과 가계부채 관리가 추가 인하의 핵심 변수입니다.'
     )
     brief_liq = (
         f'<strong>▎유동성 데이터</strong><br>'
@@ -754,7 +731,6 @@ brief_corr = (
         else '음의 상관으로 전환된 특이 구간입니다.')
 )
 
-# HTML 렌더링 (Markdown으로 안전하게 출력)
 st.markdown(f"""
 <div class="report-box">
     <div class="report-header">
@@ -773,7 +749,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 타임라인 (하단 배치)
+# 타임라인
 st.markdown('<div style="font-weight:700; font-size:1.1rem; margin-top:20px;">📅 주요 이벤트 타임라인</div>', unsafe_allow_html=True)
 tl_html = '<div class="timeline">'
 for date_str, title, desc, emoji, direction in reversed(ALL_EVENTS):
@@ -790,7 +766,6 @@ for date_str, title, desc, emoji, direction in reversed(ALL_EVENTS):
 tl_html += "</div>"
 st.markdown(tl_html, unsafe_allow_html=True)
 
-# 푸터
 st.markdown(
     f'<div class="app-footer" style="margin-top:30px; color:#999; font-size:0.8rem; text-align:center;">'
     f'Data Source: {CC["data_src"]} <br> 본 페이지는 투자 조언을 제공하지 않습니다.'
