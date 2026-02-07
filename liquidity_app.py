@@ -8,7 +8,7 @@ import numpy as np
 from zoneinfo import ZoneInfo
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 페이지 설정 (즐겨찾기 아이콘 적용)
+# 1. 페이지 설정 및 로고
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.set_page_config(
     page_title="유동성 × 시장 분석기", 
@@ -16,14 +16,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# 로고 적용
 try:
     st.logo("icon.png")
 except Exception:
     pass
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 자동 새로고침 (로직 유지)
+# 2. 자동 새로고침 로직
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def get_next_refresh():
     utc_now = datetime.now(ZoneInfo("UTC"))
@@ -46,7 +45,7 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ★ 디자인 전면 수정 (CSS)
+# 3. 디자인 시스템 (CSS / Bento Grid / Modern UI)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <style>
@@ -151,7 +150,7 @@ html, body, [data-testid="stAppViewContainer"] {
     box-shadow: var(--shadow-soft);
 }
 .report-top {
-    display: flex; justify-content: space-between; align-items: center;
+    display: flex; justify-content: space-between; align-items: flex-start;
     border-bottom: 1px dashed var(--border-color); padding-bottom: 1.2rem; margin-bottom: 1.2rem;
 }
 .report-hl {
@@ -232,6 +231,7 @@ div[data-testid="stHorizontalBlock"] {
     .bento-grid { grid-template-columns: repeat(2, 1fr); }
     .header-title { font-size: 1.6rem; }
     .kpi-metric { font-size: 1.4rem; }
+    .report-container > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 480px) {
     .bento-grid { grid-template-columns: 1fr; }
@@ -241,9 +241,8 @@ div[data-testid="stHorizontalBlock"] {
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 데이터 & 이벤트 로드 (변경 없음)
+# 4. 데이터 & 이벤트 로드
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# (기존 데이터 정의 코드 생략 없이 그대로 유지한다고 가정)
 MARKET_PIVOTS = [
     ("2015-08-24", "중국발 블랙먼데이", "위안 절하·중국 증시 폭락 → 글로벌 동반 급락 -3.9%", "🇨🇳", "down"),
     ("2016-02-11", "유가 폭락 바닥", "WTI $26 → 에너지·은행주 바닥 형성, S&P 1,829", "🛢️", "down"),
@@ -400,7 +399,7 @@ def load_data(ticker, fred_liq, fred_rec, liq_divisor):
         return None, None
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 차트 헬퍼 (모던 컬러 적용)
+# 5. 차트 헬퍼 (모던 컬러 적용)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 C = {
     "liq": "#3B82F6", "liq_fill": "rgba(59,130,246,0.1)",
@@ -448,7 +447,7 @@ def ax(extra=None):
     return d
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 헤더 섹션 (New Design)
+# 6. 헤더 및 상태바
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <div class="header-container">
@@ -477,7 +476,7 @@ brief_container = st.container()
 st.write("")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 컨트롤 바 (스타일만 변경, 로직 동일)
+# 7. 컨트롤 바 (스타일만 변경, 로직 동일)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ctrl1, ctrl2, ctrl3, ctrl4, ctrl5 = st.columns([1, 1, 1, 1, 0.5])
 with ctrl1:
@@ -532,7 +531,7 @@ AUTO_EVENTS = detect_auto_events(ohlc_raw, BASE_EVENTS)
 ALL_EVENTS = sorted(BASE_EVENTS + AUTO_EVENTS, key=lambda x: x[0])
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# KPI (Bento Cards)
+# 8. KPI (Bento Cards)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with kpi_container:
     latest = df.dropna(subset=["Liquidity", "SP500"]).iloc[-1]
@@ -583,7 +582,7 @@ with kpi_container:
     """, unsafe_allow_html=True)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Daily Brief (Advanced AI Analysis Style)
+# 9. Daily Brief (Advanced AI Analysis Style)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with brief_container:
     # ── [1] 추가 기술적 분석 지표 계산 ──
@@ -709,7 +708,7 @@ with brief_container:
     """, unsafe_allow_html=True)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 차트 (Clean Modern)
+# 10. 차트 (Clean Modern)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown('<div class="chart-wrapper">', unsafe_allow_html=True)
 
@@ -786,7 +785,7 @@ st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 st.markdown('</div>', unsafe_allow_html=True) # End chart wrapper
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Timeline (Clean Track Style)
+# 11. Timeline (Clean Track Style)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.write("")
 st.markdown(f"""
@@ -816,7 +815,7 @@ for date_str, title, desc, emoji, direction in reversed(ALL_EVENTS):
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Footer
+# 12. Footer
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <div style="text-align:center; margin-top:3rem; padding:2rem; border-top:1px solid #E5E7EB; color:#9CA3AF; font-size:0.8rem;">
