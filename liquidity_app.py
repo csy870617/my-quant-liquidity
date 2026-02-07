@@ -754,10 +754,19 @@ def load_data(idx_ticker, liq_ticker):
     try:
         import yfinance as yf
         idx_data = yf.download(idx_ticker, start=start_date, end=end_date, progress=False)
-        # 인덱스를 DatetimeIndex로 명시적 변환
-        idx_data.index = pd.DatetimeIndex(pd.to_datetime(idx_data.index))
-        # 날짜만 남기기 (시간 제거)
-        idx_data.index = idx_data.index.normalize()
+        
+        # MultiIndex 처리 (yfinance가 반환할 수 있는 형태)
+        if isinstance(idx_data.columns, pd.MultiIndex):
+            idx_data.columns = idx_data.columns.droplevel(1)
+        
+        # 필요한 컬럼만 선택
+        idx_data = idx_data[["Open", "High", "Low", "Close", "Volume"]].copy()
+        
+        # 인덱스 리셋하여 Date 컬럼으로 만들기
+        idx_data = idx_data.reset_index()
+        idx_data.columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
+        idx_data["Date"] = pd.to_datetime(idx_data["Date"]).dt.normalize()
+        
     except Exception as e:
         st.error(f"지수 데이터 로드 실패: {e}")
         return None
@@ -765,26 +774,23 @@ def load_data(idx_ticker, liq_ticker):
     # 유동성 데이터 (FRED)
     try:
         liq_data = web.DataReader(liq_ticker, "fred", start_date, end_date)
-        # 인덱스를 DatetimeIndex로 명시적 변환
-        liq_data.index = pd.DatetimeIndex(pd.to_datetime(liq_data.index))
-        # 날짜만 남기기 (시간 제거)
-        liq_data.index = liq_data.index.normalize()
-        liq_data.columns = ["Liquidity"]
+        
+        # 인덱스 리셋하여 Date 컬럼으로 만들기
+        liq_data = liq_data.reset_index()
+        liq_data.columns = ["Date", "Liquidity"]
+        liq_data["Date"] = pd.to_datetime(liq_data["Date"]).dt.normalize()
+        
     except Exception as e:
         st.error(f"유동성 데이터 로드 실패: {e}")
         return None
     
-    # 병합 (인덱스 타입 일치 확인)
-    df = idx_data[["Open", "High", "Low", "Close", "Volume"]].copy()
+    # 두 데이터프레임을 Date 컬럼 기준으로 병합
+    df = pd.merge(idx_data, liq_data, on="Date", how="left")
     
-    # 병합 전 인덱스 정렬
-    df = df.sort_index()
-    liq_data = liq_data.sort_index()
+    # Date를 인덱스로 설정
+    df = df.set_index("Date")
     
-    # 병합 수행
-    df = df.join(liq_data, how="left")
-    
-    # 결측치 전방향 채우기 (pandas 최신 버전 호환)
+    # 결측치 전방향 채우기
     df["Liquidity"] = df["Liquidity"].ffill()
     
     # 이동평균
