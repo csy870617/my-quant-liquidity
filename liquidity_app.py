@@ -552,8 +552,17 @@ with brief_container:
         regime_desc = "뚜렷한 추세가 관찰되지 않는 구간입니다."
         badge_cls = "sig-neu"
 
-    # ── [B] UI 렌더링 ──
-    st.markdown(f"""
+    # ── [B] UI 렌더링 (HTML 렌더링 강제 적용) ──
+    # 중요: TGA/RRP 변동폭 비교 로직 안전 처리
+    try:
+        if len(df) > delta_days:
+            main_driver = 'TGA(재무부 계좌)' if abs(tga_chg) > abs(rrp_chg) else 'RRP(역레포)'
+        else:
+            main_driver = '주요 유동성 지표'
+    except:
+        main_driver = '주요 유동성 지표'
+
+    html_content = f"""
     <div class="report-container">
         <div class="report-top">
             <div style="display:flex; flex-direction:column; gap:4px;">
@@ -595,10 +604,13 @@ with brief_container:
             💡 <strong>Actionable Insight:</strong> 
             현재 시장은 <strong>{regime}</strong> 국면입니다. 
             {'적극적인 비중 확대' if 'Supported Rally' in regime or 'Liquidity Support' in regime else '리스크 관리 및 현금 비중 유지' if 'Correction' in regime or 'Liquidity Drag' in regime else '박스권 트레이딩'} 전략이 유효해 보입니다. 
-            특히 <strong>{'TGA(재무부 계좌)' if abs(latest['TGA'] - prev_week['TGA']) > abs(latest['RRP'] - prev_week['RRP']) else 'RRP(역레포)'}</strong>의 변화가 유동성 흐름을 주도하고 있으니 지속적인 모니터링이 필요합니다.
+            특히 <strong>{main_driver}</strong>의 변화가 유동성 흐름을 주도하고 있으니 지속적인 모니터링이 필요합니다.
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    
+    # ★ 핵심 수정: unsafe_allow_html=True를 반드시 포함해야 함
+    st.markdown(html_content, unsafe_allow_html=True)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 10. 차트 (Net Liquidity Visualization)
