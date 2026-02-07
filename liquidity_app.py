@@ -50,7 +50,7 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# CSS (네이버 증권 스타일 + 수정사항 반영)
+# CSS (네이버 증권 스타일)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <style>
@@ -678,8 +678,16 @@ document.addEventListener('DOMContentLoaded', function() {
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("---") 
 
-# 풍부한 내용 복원
+# ★ 수정: 변수 계산 로직 복구
+liq_3m = df["Liquidity"].dropna()
+liq_3m_chg = ((liq_3m.iloc[-1] - liq_3m.iloc[-63]) / liq_3m.iloc[-63] * 100) if len(liq_3m) > 63 else 0
+sp_1m = df["SP500"].dropna()
+sp_1m_chg = ((sp_1m.iloc[-1] - sp_1m.iloc[-21]) / sp_1m.iloc[-21] * 100) if len(sp_1m) > 21 else 0
+
+today_str = datetime.now().strftime("%Y년 %m월 %d일")
 liq_display = f"{CC['liq_prefix']}{liq_val:,.0f}{CC['liq_suffix']}"
+
+# 풍부한 내용 복원
 if country == "🇺🇸 미국":
     brief_policy = (
         '<strong>▎연준 정책 현황</strong><br>'
@@ -730,7 +738,7 @@ brief_corr = (
         else '음의 상관으로 전환된 특이 구간입니다.')
 )
 
-# HTML 렌더링
+# HTML 렌더링 (Markdown으로 안전하게 출력)
 st.markdown(f"""
 <div class="report-box">
     <div class="report-header">
