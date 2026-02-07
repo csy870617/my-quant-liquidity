@@ -41,7 +41,7 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# CSS (모바일 최적화 강화)
+# CSS (모바일 최적화 강화 + 툴바 위치 변경)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
 <style>
@@ -164,14 +164,21 @@ footer { display: none !important; }
 .stRadio { margin-bottom: -0.6rem !important; }
 .app-footer { text-align:center; color:var(--text-muted); font-size:0.75rem; margin-top:2rem; padding:1rem; border-top:1px solid var(--border); }
 
-/* ── Plotly 차트 ── */
+/* ── Plotly 차트 & 툴바(Modebar) ── */
 .js-plotly-plot, .plotly, .js-plotly-plot .plotly,
 [data-testid="stPlotlyChart"], [data-testid="stPlotlyChart"] > div,
 .stPlotlyChart, .stPlotlyChart > div > div > div {
     touch-action: none !important;
     -webkit-touch-callout: none;
 }
-.modebar { opacity: 0.7 !important; }
+/* ★ 툴바(Modebar)를 우측 하단으로 이동 */
+.modebar { 
+    opacity: 0.7 !important; 
+    top: auto !important;     /* 상단 고정 해제 */
+    bottom: 0 !important;     /* 하단 고정 */
+    right: 0 !important;      /* 우측 고정 */
+    left: auto !important;    /* 좌측 고정 해제 */
+}
 .modebar:hover { opacity: 1 !important; }
 .modebar-btn { font-size: 16px !important; }
 .modebar-group { padding: 0 2px !important; }
@@ -184,8 +191,8 @@ footer { display: none !important; }
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
-        padding-left: 0.4rem !important;  /* 좌우 패딩 줄임 */
-        padding-right: 0.4rem !important; /* 좌우 패딩 줄임 */
+        padding-left: 0.4rem !important;
+        padding-right: 0.4rem !important;
     }
 
     /* 헤더 축소 */
@@ -214,22 +221,6 @@ footer { display: none !important; }
         font-size: 0.72rem !important;
     }
     
-    /* ★ 라디오 버튼 강제 가로 배치 (중요) */
-    [data-testid="stRadio"] > div[role="radiogroup"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        gap: 6px !important;
-    }
-    [data-testid="stRadio"] label {
-        font-size: 0.75rem !important;
-        padding-right: 10px !important;
-        padding-left: 4px !important;
-        margin-right: 0 !important;
-        white-space: nowrap !important;
-    }
-
     /* KPI 2열 + 콤팩트 */
     .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 0.8rem; }
     .kpi { padding: 0.8rem 0.9rem; border-radius: 10px; }
@@ -243,10 +234,10 @@ footer { display: none !important; }
     .report-body { font-size: 0.82rem; line-height: 1.7; }
     .report-signal { font-size: 0.73rem; padding: 4px 10px; }
 
-    /* ★ 차트 풀 블리드 (Full Bleed) - 화면 꽉 차게 */
+    /* ★ 차트 풀 블리드 (Full Bleed) */
     [data-testid="stPlotlyChart"] {
-        margin-left: -0.4rem !important;  /* 컨테이너 패딩만큼 음수 마진 */
-        margin-right: -0.4rem !important; /* 컨테이너 패딩만큼 음수 마진 */
+        margin-left: -0.4rem !important;
+        margin-right: -0.4rem !important;
         width: calc(100% + 0.8rem) !important;
     }
 
@@ -609,8 +600,9 @@ with ctrl2:
     idx_ticker = IDX_OPTIONS[idx_name]
 with ctrl3:
     period = st.selectbox("📅 기간", ["3년", "5년", "7년", "10년", "전체"], index=3)
+# ★ 수정: 봉 선택을 Selectbox로 변경
 with ctrl4:
-    tf = st.radio("🕯️ 봉", ["일봉", "주봉", "월봉"], horizontal=True, key="candle_tf", index=2)
+    tf = st.selectbox("🕯️ 봉", ["일봉", "주봉", "월봉"], index=2, key="candle_tf")
 with ctrl5:
     show_events = st.toggle("📌 이벤트", value=True)
 
