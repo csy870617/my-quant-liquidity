@@ -2,10 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 import pandas_datareader.data as web
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
-import numpy as np
 import json
 import threading
 import urllib.request
@@ -13,8 +10,11 @@ from zoneinfo import ZoneInfo
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Keep-alive: 백그라운드 self-ping으로 슬립 방지
+# (프로세스당 1회만 기동 — 세션별 중복 스레드 방지)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 _KEEP_ALIVE_INTERVAL = 300  # 5분마다 self-ping
+_KEEP_ALIVE_LOCK = threading.Lock()
+
 
 def _keep_alive_ping():
     """백그라운드에서 주기적으로 앱 URL에 ping을 보내 슬립 방지"""
@@ -26,10 +26,18 @@ def _keep_alive_ping():
         except Exception:
             pass
 
-if "keep_alive_started" not in st.session_state:
-    st.session_state.keep_alive_started = True
-    t = threading.Thread(target=_keep_alive_ping, daemon=True)
-    t.start()
+
+def _start_keep_alive_once():
+    """프로세스 전역에 단 하나의 keep-alive 스레드만 기동"""
+    with _KEEP_ALIVE_LOCK:
+        for t in threading.enumerate():
+            if t.name == "myquant-keepalive":
+                return
+        th = threading.Thread(target=_keep_alive_ping, daemon=True, name="myquant-keepalive")
+        th.start()
+
+
+_start_keep_alive_once()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 페이지 설정 (즐겨찾기 아이콘 적용)
@@ -234,29 +242,6 @@ footer { display: none !important; }
 .stRadio { margin-bottom: -0.6rem !important; }
 .app-footer { text-align:center; color:var(--text-muted); font-size:0.75rem; margin-top:2rem; padding:1rem; border-top:1px solid var(--border); }
 
-/* ── Plotly 차트 ── */
-.js-plotly-plot, .plotly, .js-plotly-plot .plotly,
-[data-testid="stPlotlyChart"], [data-testid="stPlotlyChart"] > div,
-.stPlotlyChart, .stPlotlyChart > div > div > div {
-    touch-action: none !important;
-    -webkit-touch-callout: none;
-}
-[data-testid="stPlotlyChart"] {
-    width: 100% !important;
-}
-
-/* ★ 툴바(Modebar) 스타일: 우측 상단 고정, 항상 표시 */
-.modebar { 
-    opacity: 1 !important; /* 항상 표시 */
-    top: 0px !important;   /* 차트 상단 */
-    right: 0px !important; /* 차트 우측 */
-    bottom: auto !important;
-    left: auto !important;
-    background: transparent !important; /* 배경 투명 */
-}
-.modebar-btn { font-size: 15px !important; }
-.modebar-group { padding: 0 4px !important; background: rgba(255,255,255,0.8); border-radius: 4px; }
-
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    모바일 반응형 (≤768px)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -327,9 +312,6 @@ footer { display: none !important; }
     /* 푸터 */
     .app-footer { font-size: 0.68rem; padding: 0.8rem 0.5rem; }
 
-    /* Plotly 모드바 모바일: 상단 고정 */
-    .modebar { opacity: 1 !important; top: 2px !important; right: 2px !important; bottom: auto !important; }
-    .modebar-btn { font-size: 18px !important; padding: 6px !important; }
 }
 
 /* ━━ 초소형 화면 (≤480px) ━━ */
@@ -1738,61 +1720,6 @@ def generate_dynamic_advice(country, bullish_count, bearish_count, liq_3m_chg, c
         )
 
     return adv_body
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 차트 헬퍼
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-C = {
-    "liq": "#3b82f6", "liq_fill": "rgba(59,130,246,0.06)",
-    "sp": "#ef4444", "sp_fill": "rgba(239,68,68,0.04)",
-    "corr_pos": "#10b981", "corr_neg": "#ef4444",
-    "grid": "rgba(226,232,240,0.6)", "bg": "#ffffff", "paper": "#f8fafc",
-    "event": "rgba(148,163,184,0.25)", "rec": "rgba(239,68,68,0.04)",
-}
-BASE_LAYOUT = dict(
-    plot_bgcolor=C["bg"], paper_bgcolor=C["paper"],
-    font=dict(family="Pretendard, sans-serif", color="#475569", size=12),
-    hovermode="x unified",
-    hoverlabel=dict(bgcolor="white", bordercolor="#e2e8f0", font=dict(color="#1e293b", size=12)),
-    # ★ 수정: 상단 여백(t)을 60px로 늘려 툴바 공간 확보
-    margin=dict(t=60, b=30, l=40, r=10), dragmode="pan",
-)
-
-def add_events_to_fig(fig, dff, events, has_rows=False, min_gap_days=30):
-    """이벤트를 차트에 추가. min_gap_days로 최소 간격 제어하여 겹침 방지"""
-    prev_dt = None
-    for date_str, title, _, emoji, direction in events:
-        dt = pd.to_datetime(date_str)
-        if dt < dff.index.min() or dt > dff.index.max():
-            continue
-        # 최소 간격 필터: 이전 이벤트와 너무 가까우면 스킵
-        if prev_dt and (dt - prev_dt).days < min_gap_days:
-            continue
-        prev_dt = dt
-        kw = dict(row="all", col=1) if has_rows else {}
-        fig.add_vline(x=dt, line_width=1, line_dash="dot", line_color=C["event"], **kw)
-        clr = "#10b981" if direction == "up" else "#ef4444"
-        fig.add_annotation(x=dt, y=1.04, yref="paper", text=f"{emoji} {title}",
-            showarrow=False, font=dict(size=11, color=clr), textangle=-38, xanchor="left")
-
-def add_recession(fig, dff, has_rows=False):
-    rec_idx = dff[dff["Recession"] == 1].index
-    if rec_idx.empty:
-        return
-    groups, start = [], rec_idx[0]
-    for i in range(1, len(rec_idx)):
-        if (rec_idx[i] - rec_idx[i - 1]).days > 5:
-            groups.append((start, rec_idx[i - 1])); start = rec_idx[i]
-    groups.append((start, rec_idx[-1]))
-    for s, e in groups:
-        kw = dict(row="all", col=1) if has_rows else {}
-        fig.add_vrect(x0=s, x1=e, fillcolor=C["rec"], layer="below", line_width=0, **kw)
-
-def ax(extra=None):
-    d = dict(gridcolor=C["grid"], linecolor="#e2e8f0", tickfont=dict(size=10), showgrid=True, zeroline=False)
-    if extra: d.update(extra)
-    return d
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
